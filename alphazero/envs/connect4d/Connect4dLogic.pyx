@@ -8,6 +8,7 @@
 # cython: auto_pickle=True
 # cython: profile=True
 
+
 import numpy as np
 
 cdef class Board:
@@ -29,10 +30,11 @@ cdef class Board:
         self.width = width
         self.num_boards = num_boards
         self.win_length = win_length
+
         self.pieces = np.zeros((num_boards, height, width), dtype=np.intc)
 
     def __getstate__(self):
-        return (self.height, self.width, self.win_length, np.asarray(self.pieces))
+        return self.height, self.width, self.win_length, np.asarray(self.pieces)
 
     def __setstate__(self, state):
         self.height, self.width, self.win_length, pieces = state

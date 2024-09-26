@@ -8,14 +8,14 @@ from alphazero.envs.connect4d.Connect4dLogic import Board
 
 import numpy as np
 
-NUM_BOARDS = 10
+NUM_BOARDS = 2
 DEFAULT_HEIGHT = 6
 DEFAULT_WIDTH = 7
 DEFAULT_WIN_LENGTH = 4
 NUM_PLAYERS = 2
 MAX_TURNS = 42
 MULTI_PLANE_OBSERVATION = True
-NUM_CHANNELS = 4 if MULTI_PLANE_OBSERVATION else 1
+NUM_CHANNELS = 3 + 3*NUM_BOARDS if MULTI_PLANE_OBSERVATION else NUM_BOARDS
 
 
 class Game(GameState):
@@ -103,10 +103,16 @@ class Game(GameState):
             pieces = np.asarray(self._board.pieces)
             player1 = np.where(pieces == 1, 1, 0)
             player2 = np.where(pieces == -1, 1, 0)
+
             colour = np.full_like(pieces[0], self.player)
-            turn = np.full_like(pieces[0], self._turns / MAX_TURNS, dtype=np.float32)
-            micro_step = np.full_like(pieces[0], self.micro_step, dtype=np.float32)
-            return np.array([player1, player2, colour, turn, micro_step], dtype=np.float32)
+            turn = np.full_like(pieces[0], self._turns / MAX_TURNS, dtype=np.intc)
+            micro_step = np.full_like(pieces[0], self.micro_step, dtype=np.intc)
+
+            colour = np.expand_dims(colour, axis = 0)
+            turn = np.expand_dims(turn, axis = 0)
+            micro_step = np.expand_dims(micro_step, axis = 0)
+
+            return np.concatenate([pieces, player1, player2, colour, turn, micro_step], axis = 0)
 
         else:
             return np.expand_dims(np.asarray(self._board.pieces), axis=0)

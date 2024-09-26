@@ -90,6 +90,12 @@ def test_rollout():
         true_indices = np.where(valid_actions)[0]
         action = np.random.choice(true_indices).item()
         game.play_action(action)
-        
+
+# Test 8: Observation
+def check_observation():
+    game = Game()
+    obs = game.observation()
+    assert obs.shape == game.observation_size()
+    
 if __name__ == "__main__":
     pytest.main()
