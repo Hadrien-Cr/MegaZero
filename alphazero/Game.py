@@ -5,11 +5,13 @@ import numpy as np
 
 
 class GameState(ABC):
-    def __init__(self, board):
+    def __init__(self, board, d = 1):
         self._board = board
         self._player = 0
         self._turns = 0
         self.last_action = None
+        self.micro_step = 0
+        self.d = d
 
     def __str__(self) -> str:
         return f'Player:\t{self._player}\n{self._board}\n'
@@ -75,8 +77,12 @@ class GameState(ABC):
 
     def _update_turn(self) -> None:
         """Should be called at the end of play_action"""
-        self._player = self._next_player(self._player)
-        self._turns += 1
+        self.micro_step+=1
+        
+        if self.micro_step == self.d:
+            self.micro_step = 0
+            self._player = self._next_player(self._player)
+            self._turns += 1
 
     @abstractmethod
     def play_action(self, action: int) -> None:
