@@ -5,7 +5,7 @@ pyxinstall(setup_args={'include_dirs': get_include()})
 from alphazero.SelfPlayAgent import SelfPlayAgent
 from alphazero.utils import get_iter_file, dotdict, get_game_results, default_temp_scaling
 from alphazero.Arena import Arena
-from alphazero.GenericPlayers import RawMCTSPlayer, NNPlayer, MCTSPlayer
+from alphazero.GenericPlayers import RandomPlayer, RawMCTSPlayer, NNPlayer, MCTSPlayer
 from alphazero.pytorch_classification.utils import Bar, AverageMeter
 
 from torch import multiprocessing as mp
@@ -348,7 +348,7 @@ class Coach:
                 sample_time.update((time() - end) / (size - n), size - n)
                 n = size
                 end = time()
-            bar.suffix = f'({size}/{self.args.gamesPerIteration}) Sample Time: {sample_time.avg:.3f}s | Total: {bar.elapsed_td} | ETA: {bar.eta_td:}'
+            bar.suffix = f'({size}/{self.args.gamesPerIteration} Games) Sample Time: {sample_time.avg:.3f}s | Total: {bar.elapsed_td} | ETA: {bar.eta_td:}'
             bar.goto(size)
             self.sample_time = sample_time.avg
             self.iter_time = bar.elapsed_td
@@ -581,7 +581,7 @@ class Coach:
 
         players = [nnplayer] + [test_player] * (self.game_cls.num_players() - 1)
         self.arena = Arena(players, self.game_cls, use_batched_mcts=can_process, args=self.args)
-        wins, draws, winrates = self.arena.play_games(self.args.arenaCompare)
+        wins, draws, winrates = self.arena.play_games(self.args.arenaCompareBaseline)
         if self.stop_train.is_set(): return
         winrate = winrates[0]
 

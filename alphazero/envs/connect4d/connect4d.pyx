@@ -8,7 +8,7 @@ from alphazero.envs.connect4d.Connect4dLogic import Board
 
 import numpy as np
 
-NUM_BOARDS = 2
+NUM_BOARDS = 7 # Number of boards in the stacked environment, also equals to d
 DEFAULT_HEIGHT = 6
 DEFAULT_WIDTH = 7
 DEFAULT_WIN_LENGTH = 4
@@ -36,7 +36,7 @@ class Game(GameState):
         return (self._player == other._player 
                 and self._turns == other._turns 
                 and self.micro_step == other.micro_step 
-                and self._board.pieces == other._board.pieces)
+                and np.array_equal(self._board.pieces,other._board.pieces))
 
 
     def clone(self) -> 'Game':
@@ -92,8 +92,7 @@ class Game(GameState):
                 return np.array(result, dtype=np.uint8)
             
             elif game_over and i == NUM_BOARDS - 1:
-                result = [False] * 3
-                result[2] = True
+                result = [False, False, True] 
                 return np.array(result, dtype=np.uint8)
 
         return np.array([False] * 3, dtype=np.uint8)

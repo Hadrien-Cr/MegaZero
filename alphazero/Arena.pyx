@@ -298,7 +298,7 @@ class Arena:
                 self.draws += draws
                 self.__update_winrates()
 
-                bar.suffix = '({eps}/{maxeps}) Winrates: {wr} | Eps Time: {et:.3f}s | Total: {total:} | ETA: {eta:}' \
+                bar.suffix = '({eps}/{maxeps} Games) Winrates: {wr} | Eps Time: {et:.3f}s | Total: {total:} | ETA: {eta:}' \
                     .format(
                         eps=size, maxeps=num, et=sample_time.avg, total=bar.elapsed_td, eta=bar.eta_td,
                         wr=[round(w, 3) for w in self.winrates()]

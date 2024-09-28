@@ -1,15 +1,16 @@
+"""
 import pyximport; pyximport.install()
 
 from torch import multiprocessing as mp
 
 from alphazero.Coach import Coach, get_args
 from alphazero.NNetWrapper import NNetWrapper as nn
-from alphazero.envs.connect4.connect4 import Game
+from alphazero.envs.generic.generic import Game
 from alphazero.GenericPlayers import RawMCTSPlayer
 from alphazero.utils import dotdict
 
 args = get_args(dotdict({
-    'run_name': 'connect4_fpu',
+    'run_name': 'generic_fpu',
     'workers': mp.cpu_count(),
     'startIter': 1,
     'numIters': 1000,
@@ -29,7 +30,6 @@ args = get_args(dotdict({
     'arenaCompare': 128 * mp.cpu_count(),
     'arena_batch_size': 128,
     'arenaTemp': 1,
-    'arenaMCTS': True,
     'baselineCompareFreq': 1,
     'compareWithPast': True,
     'pastCompareFreq': 1,
@@ -56,3 +56,4 @@ if __name__ == "__main__":
     nnet = nn(Game, args)
     c = Coach(Game, nnet, args)
     c.learn()
+"""

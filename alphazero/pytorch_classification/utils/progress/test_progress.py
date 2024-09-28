@@ -14,7 +14,7 @@ from progress.counter import Counter, Countdown, Stack, Pie
 
 
 def sleep():
-    t = 0.01
+    t = 1e-6
     t += t * random.uniform(-0.1, 0.1)  # Add some variance
     time.sleep(t)
 
@@ -45,4 +45,5 @@ bar = IncrementalBar('Random', suffix='%(index)d')
 for i in range(100):
     bar.goto(random.randint(0, 100))
     sleep()
+
 bar.finish()

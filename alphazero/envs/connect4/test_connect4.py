@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from alphazero.envs.connect4.connect4 import Game 
+import dill as pickle
 '''
 Run this test: 
 python3 -m alphazero.envs.connect4.test_connect4
@@ -78,9 +79,11 @@ def test_game_ended():
 def test_immutable_move():
     game = init_board_from_moves([])
     clone_game = game.clone()
+    assert game.__eq__(clone_game)
+    
     game.play_action(5)
+    assert not game.__eq__(clone_game)
     assert np.array_equal(clone_game._board, game._board.pieces) == False  # Board should have changed
-
 # Test 7: Random Rollout
 def test_rollout():
     game = init_board_from_moves([])
@@ -89,6 +92,18 @@ def test_rollout():
         true_indices = np.where(valid_actions)[0]
         action = np.random.choice(true_indices).item()
         game.play_action(action)
-        
+
+
+# Test 8: Observation
+def check_observation():
+    game = Game()
+    obs = game.observation()
+    assert obs.shape == game.observation_size()
+
+# Test 9: Pickleability
+def is_pickleable():
+    game = Game()
+    assert pickle.pickles(game) 
+
 if __name__ == "__main__":
     pytest.main()

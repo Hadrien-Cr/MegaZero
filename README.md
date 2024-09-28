@@ -19,53 +19,46 @@ You may join the [Discord server](https://discord.gg/MVaHwGZpRC) if you wish to 
 8. **Root Dirichlet Noise & Root Temperature, Discount:** Allows for better exploration and MCTS doesn't get stuck in local minima as often. Discount allows AlphaZero to "understand" the concept of time and chooses actions which lead to a win more quickly/efficiently as opposed to choosing a win that would occur later on in the game.
 9. **More Adjustable Parameters:** This implementation allows for the modification of numerous hyperparameters, allowing for substantial control over the training process. More on hyperparameters below where the usage of some are discussed.
 
-## Getting Started
-### Install required packages
-Make sure you have Python 3 installed. Then run:
+### Structure of the code 
+To run a training use the command 
+`python3 -m alphazero.envs.<env-name>.train`
+To run the test for the environments:
+`python3 -c 'import pytest; pytest.main()'`
+You can change the training arguments in the file `alphazero/envs/<env-name>/train.py`
 
-```pip3 install -r requirements.txt```
+**`Game.py`:** the class definition for the adversarial game. It only has argument `num_players`and `d`. `d` denotes the *depth of turn* ie the number of actions that a player has to perform to complete his turn (`d = 1`  for non multi-action game)
 
-### GUI (work-in-progress)
-![image](https://user-images.githubusercontent.com/28303167/164362451-01590045-5070-45a1-8989-ab70e364b19f.png)
+**`envs`:** the folder that contains the **`Game`** different `game_cls` implementations. See connect4 for a simple example. In general, use a `_board` class to implement the game logic. See `connect4` for a simple exmaple, and edit the `generic` to implement your own game.
 
-AlphaZeroGUI, built using PyQT5, is intended to simplify the training, hyperparameter selection, and deployment/inference processes as opposed to modifying different files and running in the command line. It can be run with the following command:
+**`GenericPlayers.py`:** the script that define the player classes 
+- RandomPlayer, 
+- NNPlayer (Acts with the given policy network), 
+- MCTSPlayer (Acts with MCTS guide by NN policy and value network) 
+- RawMCTSPlayer (Acts with MCTS guide by default uniform policy an value), NNPlayer
 
-`python -m AlphaZeroGUI.main`
+**`NNetWrapper.py (as nn)`:** the script that defines the neural nets (policy and value net included, usable with `predict` method)
 
-After that, the controls are generally intuitive. Default/saved arguments can be loaded, the environment can be selected (see section ***Create your own game*** for implementing environment for GUI), arguments can be edited/created, and tensorboard can be opened. Simple training stats are shown on the left side, and the progress is shown at the bottom.
+**`SelfPlayAgents.py`:** the script that performs the self-play. It creates multiple instances of MCTSPlayer with the current network. 
+Is is used for the mode training `_is_arena = False` or for the mode arena `_is_arena = False`. Mode Arena means that the self play MCTS logic is used to make a perform a match between players.
+The process of move selection is distributed among the workers
 
-![image](https://user-images.githubusercontent.com/28303167/164365609-30e374a9-0b82-46fd-b3c1-ac8155f24d8c.png)
+**`Arena.py`:** the script that defines the class `Arena(players, game_cls)` manages the games played in the arena and record the statistics.
+By default, after each training iteration, an Arena is created against `MCTSPlayer(net iter n) VS RawMCTS` (baseline test) `MCTSPlayer(net iter n) vs MCTSPlayer(net iter n-1)` (net selection test).
 
-At the top left, the Arena tab can be toggled as seen above. Here, a separate set of args & env can be loaded and the type of players can be selected. For example, in the above image the brandubh environment was loaded and an MCTS Player with a model is pitted against a human player.
-
-For now, Arena is still displayed in the console, but eventually there will be support for each environment to implement its own graphical interface to play games (agent-agent, agent-player, player-player).
-
-### Try one of the existing examples
-1. Adjust the hyperparameters in one of the examples to your preference (in the GUI editor, or path is ```alphazero/envs/<env name>/train.py```). Take a look at Coach.py where the default arguments are stored to see the available options. For example, edit ```alphazero/envs/connect4/train.py```.
-
-
-2. After that, you can start training AlphaZero on your chosen environment by pressing the 'play' button in the GUI, or running the following in the console:
-
-```python3 -m alphazero.envs.<env name>.train```
-
-Make sure that your working directory is the root of the repo.
-
-3. You can observe how training is progressing in the GUI, from the console output, or you can also run tensorboard for a visual representation. To start tensorboard in the console, run:
-
-```tensorboard --logdir ./runs```
-
-also from the project root. `runs` is the default directory for tensorboard data, but it can be changed in the hyperparameters.
-
-4. Once you have trained a model and want to test it, either against itself or yourself, use the Arena tab in the GUI as described above, or in console you must change ```alphazero/pit.py``` (or ```alphazero/envs/<env name>/pit.py```) to your needs and run it with:
-
-```python3 -m alphazero.pit```
-
-(once again, this will be easier to accomplish in future updates). You may also modify `roundrobin.py` to run a tournament with different iterations of models to rank them using a rating system.
-
-### Create your own game to train on
-More detailed documentation is on the way, but essentially you must subclass `GameState` from `alphazero/Game.py` and implement its abstract methods correctly. Your game engine subclass of `GameState` must be named `Game` and located in `alphazero/envs/<env name>/<env name>.py` in order for the GUI to recognize it. If this is done, just create a `train` file and choose hyperparameters accordingly and start training, or use the GUI to train and pit. Also, it may be helpful to use and subclass the `boardgame` module to create a new game engine more easily, as it implements some functions that can be useful.
-
-As a general guideline, game engine files/other potential bottlenecks should be implemented in Cython, or at least stored as `.pyx` files to be compiled for runtime for increased performace.
+**`Coach.py`:** the script that defines the class `Coach((self, game_cls, nnet, args)`  Calling `coach.train` starts the training process.
+It performs `n_iters`times the following:
+```
+self.generateSelfPlayAgents() # creates as many selfplayAgents as "workers" and let them play and collect games
+self.processSelfPlayBatches(self.model_iter)
+self.saveIterationSamples(self.model_iter)
+self.processGameResults(self.model_iter)
+self.killSelfPlayAgents()
+self.train() # fit the network to the collected experience
+self.compareToBaseline() # MCTSPlayer(net iter n) VS RawMCTS
+self.compareToPast() # Arena MCTSPlayer(net iter n) vs MCTSPlayer(net iter n-1)
+```
+**`data`:** the folder where the collected experience is written
+**`checkpoint`:** the folder where the model checkpoint are written. By default, the newest checkpoint is loaded, delete the folders if needed.
 
 ### Description of some hyperparameters
 **`workers`:** Number of processes used for self play, Arena comparison, and training the model. Should generally be set to the number of processors - 1.
@@ -104,35 +97,4 @@ As a general guideline, game engine files/other potential bottlenecks should be 
 
 **`value_dense_layers/policy_dense_layers`:** These arguments define the sizes and number of layers in the dense network of the value and policy head. This must be a list of integers where each element defines the number of neurons in the layer and the number of elements defines how many layers there should be.
 
-## Results
-### Connect Four
-`envs/connect4`
 
-AlphaZero was trained on the `connect4` env for 208 iterations in the past, but unfortunately the specific args used to train it were lost. The args were quite close to the current default for the connect4 env (but with lower batch size and games/iteration, hence the large number of iterations), therefore the trained model can still be loaded with some trial and error.
-
-This training instance was very successful, and was unbeatable by every human trial. Here are the Tensorboard logs:
-![image](https://user-images.githubusercontent.com/28303167/164115107-61ccd431-0cd0-40c7-9814-10b8e277e1bf.png)
-![image](https://user-images.githubusercontent.com/28303167/164115147-e79dc41b-4b68-4dc1-8146-198cf96e6647.png)
-It can be seen that over time as total loss decreases, the model plays increasingly better against the baseline tester (which I believe was a raw MCTS player at the time). Note that the average game length and amount of draws also increase as the model understands the dynamics of the game better and struggles more to beat itself as it gets better.
-
-Towards the end of training, the winrate against the past model suddenly decreases; I believe this is because the model has learnt to play a perfect game, and begins to overfit as it continues to generate very similar data via its self-play. This overfitting makes it less general and adaptable to dynamic situations, and therefore its past self can defeat it because it can adapt better.
-
-The model file for the most successful iteration (193) can be downloaded [here](https://drive.google.com/file/d/111afRD0j9CD86nFyKueAAGdXNAmAxxDn/view?usp=sharing). As mentioned above, subsequent iterations underperformed most likely due to overfitting.
-
-Another instance was trained later using the current default arguments. It was trained using more recent features such as FPU value, root temperature/dirichlet noise, etc. Only 35 iterations were trained, as it was intended just to test these new features.
-
-I was surprised to see that even in only 35 iterations (which took approximately 8 hours on a GTX 1070 and i5-4690 CPU) it had reached superhuman capabilities. Take a look at the Tensorboard logs:
-![image](https://user-images.githubusercontent.com/28303167/164116278-8eabfa9f-cd33-4f19-bf09-16906bfef0e6.png)
-![image](https://user-images.githubusercontent.com/28303167/164116313-5afe1e73-b087-4827-a407-553b652b66de.png)
-For unknown reasons, it does not perform as well against the baseline tester as the instance above, but this is probably due to the use of dirichlet noise and root temperature in Arena, which can cause AlphaZero to make a 'mistake' by random chance (which is intended for further exploration in self-play). However, if these are turned off, temperature is set to a low value (0-0.25), and more 'thinking' time is allowed (number of MCTS simulations are increased), then even this undertrained model can essentially play a perfect game.
-
-The model for the lateset iteration (35) of this instance can be downloaded [here](https://drive.google.com/file/d/1goGnOWeQY2LmWounB-FPPoSH7ZdCg59X/view?usp=sharing).
-
-### Viking Chess - Brandubh
-`envs/brandubh`
-
-The tensorboard logs have been corrupted for the best trained instance, therefore it cannot be included here. It was trained for 48 iterations with the default args included in the GUI (`AlphaZeroGUI/args/brandubh.json`), and achieved human-level results when testing.
-
-However, the model does have a strange tendency to disregard obvious opportunities on occasion such as a victory in one move or blocking a defeat. Also, the game length seems to even out around 25 moves - despite the players' nearly even win rate - instead of increasing to the maximum as expected. This is being investigated, but it is either due to inappropriate hyperparameters, or a bug in the MCTS code regarding recent changes.
-
-Iteration 48 of the model can be downloaded [here](https://drive.google.com/file/d/1rv9fiFQRUVBv-4PBkfmawtRm3wqAM67H/view?usp=sharing).

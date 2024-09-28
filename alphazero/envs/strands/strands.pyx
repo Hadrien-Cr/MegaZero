@@ -3,8 +3,10 @@
 # cython: profile=True
 
 from typing import List, Tuple, Any
+
 from alphazero.Game import GameState
 from alphazero.envs.strands.StrandsLogic import Board
+
 import numpy as np
 
 DEFAULT_WIDTH = 11
@@ -13,10 +15,17 @@ MAX_TURNS = 34
 NUM_PLAYERS = 2
 MULTI_PLANE_OBSERVATION = True
 NUM_CHANNELS = 8
-
-assert(DEFAULT_HEIGHT == DEFAULT_WIDTH and DEFAULT_HEIGHT % 2 == 1)
-
 class Game(GameState):
+    """
+    Game class for the game of strands
+    
+    Please check the rules here https://boardgamegeek.com/boardgame/364343/strands
+    
+    A macro action is made of 2 phases:
+    - picking a digit (from 1 to 6)
+    - placing tiles on the empty hexes corresponding to the digit chosen
+    The macro-action thus have maximum length d = 7
+    """
     def __init__(self):
         super().__init__(board=self._get_board(), d=7)
         self.micro_step = 1
@@ -26,17 +35,18 @@ class Game(GameState):
         return Board(width=DEFAULT_WIDTH)
 
     def __str__(self):
-        return str(self.tiles)
+        return str(self._board.hexes)
 
     def __hash__(self):
-        return hash(self.hexes.tobytes())
+        return hash(self._board.hexes.tobytes() + bytes([self._turns]) + bytes([self._player]))
 
     def __eq__(self, other):
         return (self._player == other._player
                 and self._turns == other._turns
                 and self.micro_step == other.micro_step
-                and self._board.hexes == other._board.hexes
-                and self._board.digit_chosen == other._board.digit_chosen)
+                and np.array_equal(self._board.hexes, other._board.hexes)
+                and self._board.digit_chosen == other._board.digit_chosen
+                and self._board.tiles_left_to_place == other._board.tiles_left_to_place)
 
     def clone(self) -> 'Game':
         game = Game()
@@ -71,20 +81,25 @@ class Game(GameState):
         return NUM_CHANNELS, DEFAULT_HEIGHT, DEFAULT_WIDTH
 
     def valid_moves(self):
+        valid = np.zeros((7 + self._board.width**2), dtype=np.intc)
+
         if self.micro_step == 0:  # Have to Select A Digit
             if self._board.digit_chosen != 0:
                 raise ValueError(f"Cannot perform digit picking, digit_chosen already set to {self._board.digit_chosen}")
-            return self._board.get_digits_available()
+            valid_digits = np.where(np.asarray(self._board.hexes_available) > 0, 1, 0)
+            valid[0:7] = valid_digits
 
         elif self.micro_step < 7:
             if self._board.tiles_left_to_place == 0:
-                return self._board.get_skip_action_only()
+                valid[0] = 1
             else:
-                return self._board.get_hexes_available()
-
+                unoccupied_hexes =  np.where(np.asarray(self._board.hexes) == 0, 1, 0).flatten()
+                valid_hexes = np.where(np.asarray(self._board.hexes_to_labels) == self._board.digit_chosen, 1, 0)
+                valid[7::] = np.logical_and(valid_hexes, unoccupied_hexes)
         else:
             raise ValueError(f"Invalid micro_step, got {self.micro_step}, should be reset to 0")
 
+        return valid
     def play_action(self, action: int) -> None:
         super().play_action(action)
 
@@ -111,21 +126,21 @@ class Game(GameState):
 
     def observation(self):
         if MULTI_PLANE_OBSERVATION:
-            tiles = np.asarray(self._board.hexes)
-            player1 = np.where(tiles == 1, 1, 0)
-            player2 = np.where(tiles == -1, 1, 0)
-            empty = np.where(tiles == 0, 1, 0)
+            hexes = np.reshape(self._board.hexes,(self._board.width, self._board.width))
+            player1 = np.where(hexes== 1, 1, 0)
+            player2 = np.where(hexes== -1, 1, 0)
+            empty = np.where(hexes== 0, 1, 0)
 
-            colour = np.full_like(tiles, self.player)
-            digit_chosen = np.full_like(tiles, self._board.digit_chosen, dtype=np.intc)
-            digit_left_to_place = np.full_like(tiles, self._board.tiles_left_to_place, dtype=np.intc)
-            turn = np.full_like(tiles, self._turns / MAX_TURNS, dtype=np.intc)
-            micro_step = np.full_like(tiles, self.micro_step, dtype=np.intc)
+            colour = np.full_like(hexes, self.player)
+            digit_chosen = np.full_like(hexes, self._board.digit_chosen, dtype=np.intc)
+            tiles_left_to_place = np.full_like(hexes, self._board.tiles_left_to_place, dtype=np.intc)
+            turn = np.full_like(hexes, self._turns / MAX_TURNS, dtype=np.intc)
+            micro_step = np.full_like(hexes, self.micro_step, dtype=np.intc)
 
-            return np.array([tiles, player1, player2, empty, digit_chosen, digit_left_to_place, colour, turn, micro_step], dtype=np.intc)
+            return np.array([hexes, player1, player2, empty, digit_chosen, tiles_left_to_place, colour, turn, micro_step], dtype=np.intc)
 
         else:
-            return np.expand_dims(np.asarray(self._board.pieces), axis=0)
+            return np.expand_dims(np.reshape(self._board.hexes,(self._board.width, self._board.width)), axis=0)
 
     def win_state(self) -> np.ndarray:
         if self._turns < MAX_TURNS:

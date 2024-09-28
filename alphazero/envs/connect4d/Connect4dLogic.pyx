@@ -48,7 +48,7 @@ cdef class Board:
                 self.pieces[sub_board, (self.height - 1) - r, column] = player
                 return
         raise ValueError(f"Can't play column {column} on board {self}")
-
+        return 
     def get_valid_moves(self, int sub_board):
         """Any zero value in the top row is a valid move."""
         cdef Py_ssize_t c

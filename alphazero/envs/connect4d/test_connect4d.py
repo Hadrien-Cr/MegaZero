@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from alphazero.envs.connect4d.connect4d import Game, NUM_BOARDS  
+import dill as pickle
 '''
 Run this test: 
 python3 -m alphazero.envs.connect4d.test_connect4d
@@ -74,12 +75,25 @@ def test_game_ended():
     
     game = init_board_from_moves([])
     assert np.array_equal(game.win_state(), np.array([False, False, False]))  # Initial state is not a game ended
-
+    
+    game = init_board_from_array([
+        [-1, 1, -1, 1, -1, 1,-1],
+        [-1, 1, -1, 1, -1, 1,-1],
+        [1, -1, 1, -1, 1, -1, 1],
+        [1, -1, 1, -1, 1, -1, 1],
+        [-1, 1, -1, 1, -1, 1,-1],
+        [-1, 1, -1, 1, -1, 1,-1]
+    ])
+    assert np.array_equal(game.win_state(), np.array([False, False, True])) # Player 1 wins with a diagonal
+    
 # Test 6: Immutable move check
 def test_immutable_move():
     game = init_board_from_moves([])
     clone_game = game.clone()
+    assert game.__eq__(clone_game)
+    
     game.play_action(5)
+    assert not game.__eq__(clone_game)
     assert np.array_equal(clone_game._board, game._board.pieces) == False  # Board should have changed
 
 # Test 7: Random Rollout
@@ -96,6 +110,11 @@ def check_observation():
     game = Game()
     obs = game.observation()
     assert obs.shape == game.observation_size()
+
+# Test 9: Pickleability
+def is_pickleable():
+    game = Game()
+    assert pickle.pickles(game)
     
 if __name__ == "__main__":
     pytest.main()
