@@ -24,6 +24,7 @@ import os
 
 DEFAULT_ARGS = dotdict({
     'run_name': 'boardgame',
+    'macro_act': True,
     'cuda': torch.cuda.is_available(),
     'workers': mp.cpu_count(),
     'startIter': 0,
@@ -223,8 +224,10 @@ class Coach:
         )
 
     def learn(self):
+        print('------------------')
         print('Because of batching, it can take a long time before any games finish.')
-
+        print('------------------')
+        print("Using ", "macro acting" if self.args.macro_act else "micro acting")
         try:
 
             while self.model_iter <= self.args.numIters:

@@ -157,23 +157,24 @@ class Arena:
         while not self.stop_event.is_set():
             while self.pause_event.is_set():
                 time.sleep(.1)
+            print("here")
+            if not self.args.macro_act:
+                action = self.players[player_to_index[self.game_state.player]](self.game_state)
+                if self.stop_event.is_set() or not isinstance(action, int):
+                    break
 
-            action = self.players[player_to_index[self.game_state.player]](self.game_state)
-            if self.stop_event.is_set() or not isinstance(action, int):
-                break
+                [p.update(self.game_state, action) for p in self.players]
+                self.game_state.play_action(action)
 
-            # valids = state.valid_moves()
-            # assert valids[action] > 0, ' '.join(map(str, [action, index, state.player, turns, valids]))
+            elif self.args.macro_act:
+                macro_action = self.players[player_to_index[self.game_state.player]](self.game_state)
+                if self.stop_event.is_set() or not isinstance(action, list):
+                    break
+                
+                for action in macro_action:
+                    [p.update(self.game_state, action) for p in self.players]
+                    self.game_state.play_action(action)
 
-            if verbose:
-                print(f'Turn {self.game_state.turns}, Player {self.game_state.player}')
-
-            [p.update(self.game_state, action) for p in self.players]
-            self.game_state.play_action(action)
-
-            if verbose:
-                self.display(self.game_state, action)
-            
             winstate = self.game_state.win_state()
 
             if winstate.any():

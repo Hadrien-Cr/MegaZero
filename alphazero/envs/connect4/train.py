@@ -10,14 +10,15 @@ from alphazero.utils import dotdict
 
 args = get_args(dotdict({
     'run_name': 'connect4_fpu',
+    'macro_act': False,
     'workers': mp.cpu_count(),
     'startIter': 1,
     'numIters': 1000,
     'numWarmupIters': 1,
-    'process_batch_size': 1024,
+    'process_batch_size': 512,
     'train_batch_size': 1024,
     # should preferably be a multiple of process_batch_size and workers
-    'gamesPerIteration': 1024 * mp.cpu_count(),
+    'gamesPerIteration': 512 * mp.cpu_count(),
     'symmetricSamples': True,
     'skipSelfPlayIters': None,
     'selfPlayModelIter': None,
@@ -25,8 +26,8 @@ args = get_args(dotdict({
     'numFastSims': 40,
     'probFastSim': 0.75,
     'compareWithBaseline': True,
-    'arenaCompareBaseline': 128 * mp.cpu_count(),
-    'arenaCompare': 128 * mp.cpu_count(),
+    'arenaCompareBaseline': 128,
+    'arenaCompare': 128,
     'arena_batch_size': 128,
     'arenaTemp': 1,
     'arenaMCTS': True,

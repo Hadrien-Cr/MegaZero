@@ -34,7 +34,7 @@ You can change the training arguments in the file `alphazero/envs/<env-name>/tra
 - RandomPlayer, 
 - NNPlayer (Acts with the given policy network), 
 - MCTSPlayer (Acts with MCTS guide by NN policy and value network) 
-- RawMCTSPlayer (Acts with MCTS guide by default uniform policy an value), NNPlayer
+- RawMCTSPlayer (Acts with MCTS guide by default uniform policy an value)
 
 **`NNetWrapper.py (as nn)`:** the script that defines the neural nets (policy and value net included, usable with `predict` method)
 
@@ -58,9 +58,13 @@ self.compareToBaseline() # MCTSPlayer(net iter n) VS RawMCTS
 self.compareToPast() # Arena MCTSPlayer(net iter n) vs MCTSPlayer(net iter n-1)
 ```
 **`data`:** the folder where the collected experience is written
+
 **`checkpoint`:** the folder where the model checkpoint are written. By default, the newest checkpoint is loaded, delete the folders if needed.
 
 ### Description of some hyperparameters
+
+**`macro_act`:** Whether or not to perform *macro acting* If set to true, all players will perform a macro-action after each MCTS search, instead of a micro-action. It is way quicker but also less more precise, so it requires more many MCTS iterations.
+
 **`workers`:** Number of processes used for self play, Arena comparison, and training the model. Should generally be set to the number of processors - 1.
 
 **`process_batch_size`:** The size of the batches used for batching MCTS during self play. Equivalent to the number of games that should be played at the same time in each worker. For exmaple, a batch size of 128 with 4 workers would create 128\*4 = 512 total games to be played simultaneously.

@@ -135,29 +135,21 @@ class MCTSPlayer(BasePlayer):
         self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
         policy = self.mcts.probs(state, self.temp)
 
-        if self.print_policy:
-            print(f'policy: {policy}')
+        if not self.args.macro_act:
+            policy = self.mcts.probs(state, self.temp)
+            action = np.random.choice(len(policy), p=policy)
+            return action
 
-        if self.verbose:
-            _, value = self.nn.predict(state.observation())
-            print('max tree depth:', self.mcts.max_depth)
-            print(f'raw network value: {value}')
+        elif self.args.macro_act:
+            macro_action = []
+            current_player = state._player
+            gs = state.clone()
+            while gs._player == current_player:
+                policy = self.mcts.probs(gs, self.temp)
+                action = np.random.choice(len(policy), p=policy)
+                macro_action.append(macro_action)
+            return macro_action
 
-            value = self.mcts.value(self.average_value)
-            rel_val = 0.5 * (value - self.__rel_val_split) / (1 - self.__rel_val_split) + 0.5 \
-                if value >= self.__rel_val_split else (value / self.__rel_val_split) * 0.5
-
-            print(f'value for player {state.player}: {value}')
-            print('relative value:', rel_val)
-
-        if self.draw_mcts:
-            plot_mcts_tree(self.mcts, max_depth=self.draw_depth)
-
-        action = np.random.choice(len(policy), p=policy)
-        if self.verbose:
-            print('confidence of action:', policy[action])
-
-        return action
 
     def process(self, *args, **kwargs):
         return self.nn.process(*args, **kwargs)
@@ -181,19 +173,21 @@ class RawMCTSPlayer(MCTSPlayer):
     def play(self, state) -> int:
         self.mcts.raw_search(state, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
         self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
-        policy = self.mcts.probs(state, self.temp)
-        action = np.random.choice(len(policy), p=policy)
 
-        if self.verbose:
-            print('max tree depth:', self.mcts.max_depth)
-            print(f'value for player {state.player}: {self.mcts.value(self.average_value)}')
-            print(f'policy: {policy}')
-            print('confidence of action:', policy[action])
+        if not self.args.macro_act:
+            policy = self.mcts.probs(state, self.temp)
+            action = np.random.choice(len(policy), p=policy)
+            return action
 
-        if self.draw_mcts:
-            plot_mcts_tree(self.mcts, max_depth=self.draw_depth)
-
-        return action
+        elif self.args.macro_act:
+            macro_action = []
+            current_player = state._player
+            gs = state.clone()
+            while gs._player == current_player:
+                policy = self.mcts.probs(gs, self.temp)
+                action = np.random.choice(len(policy), p=policy)
+                macro_action.append(macro_action)
+            return macro_action
 
     def process(self, batch: torch.Tensor):
         return torch.full((batch.shape[0], self._POLICY_SIZE), self._POLICY_FILL_VALUE).to(batch.device), \

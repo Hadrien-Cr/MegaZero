@@ -4,12 +4,12 @@ from torch import multiprocessing as mp
 
 from alphazero.Coach import Coach, get_args
 from alphazero.NNetWrapper import NNetWrapper as nn
-from alphazero.envs.strands.strands import Game
+from alphazero.envs.connect4.connect4 import Game
 from alphazero.GenericPlayers import RawMCTSPlayer
 from alphazero.utils import dotdict
 
 args = get_args(dotdict({
-    'run_name': 'strands_fpu',
+    'run_name': 'connect4_fpu',
     'macro_act': True,
     'workers': mp.cpu_count(),
     'startIter': 1,
@@ -18,8 +18,8 @@ args = get_args(dotdict({
     'process_batch_size': 512,
     'train_batch_size': 1024,
     # should preferably be a multiple of process_batch_size and workers
-    'gamesPerIteration': 4*512 * mp.cpu_count(),
-    'symmetricSamples': False,
+    'gamesPerIteration': 4*512*mp.cpu_count(),
+    'symmetricSamples': True,
     'skipSelfPlayIters': None,
     'selfPlayModelIter': None,
     'numMCTSSims': 200,
