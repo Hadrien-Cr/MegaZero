@@ -20,7 +20,7 @@ NUM_CHANNELS = 3 + 3*NUM_BOARDS if MULTI_PLANE_OBSERVATION else NUM_BOARDS
 
 class Game(GameState):
     def __init__(self):
-        super().__init__(self._get_board(), d=NUM_BOARDS)
+        super().__init__(self._get_board())
 
     @staticmethod
     def _get_board():
@@ -42,6 +42,7 @@ class Game(GameState):
     def clone(self) -> 'Game':
         game = Game()
         game._board.pieces = np.copy(np.asarray(self._board.pieces))
+        
         game._player = self._player
         game._turns = self._turns
         game.micro_step = self.micro_step
@@ -75,7 +76,10 @@ class Game(GameState):
     def play_action(self, action: int) -> None:
         super().play_action(action)
         self._board.add_stone(action, (1, -1)[self.player], sub_board=self.micro_step)
-        self._update_turn()
+        
+        self.micro_step+= 1 
+        if self.micro_step == NUM_BOARDS:
+            self._update_turn()
 
     def win_state(self) -> np.ndarray:
         for i in range(NUM_BOARDS):
@@ -111,7 +115,8 @@ class Game(GameState):
             turn = np.expand_dims(turn, axis = 0)
             micro_step = np.expand_dims(micro_step, axis = 0)
 
-            return np.concatenate([pieces, player1, player2, colour, turn, micro_step], axis = 0)
+            return np.concatenate([pieces, player1, player2, 
+                                colour, turn, micro_step], axis = 0)
 
         else:
             return np.expand_dims(np.asarray(self._board.pieces), axis=0)

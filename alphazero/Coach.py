@@ -225,9 +225,11 @@ class Coach:
 
     def learn(self):
         print('------------------')
+        print('Running AlphaZero on', self.args.run_name)
+        print('------------------')
         print('Because of batching, it can take a long time before any games finish.')
         print('------------------')
-        print("Using ", "macro acting" if self.args.macro_act else "micro acting")
+        print("Using", "macro acting" if self.args.macro_act else "micro acting")
         try:
 
             while self.model_iter <= self.args.numIters:
@@ -351,7 +353,8 @@ class Coach:
                 sample_time.update((time() - end) / (size - n), size - n)
                 n = size
                 end = time()
-            bar.suffix = f'({size}/{self.args.gamesPerIteration} Games) Sample Time: {sample_time.avg:.3f}s | Total: {bar.elapsed_td} | ETA: {bar.eta_td:}'
+            gps = (1/sample_time.avg) if sample_time.avg>0 else 0
+            bar.suffix = f'({size}/{self.args.gamesPerIteration} Games)| GPS: {gps:.1f} | Total: {bar.elapsed_td}'
             bar.goto(size)
             self.sample_time = sample_time.avg
             self.iter_time = bar.elapsed_td
@@ -448,9 +451,9 @@ class Coach:
             )
             
             try:
-                data_tensor = torch.load(filename + '-data.pkl')
-                policy_tensor = torch.load(filename + '-policy.pkl')
-                value_tensor = torch.load(filename + '-value.pkl')
+                data_tensor = torch.load(filename + '-data.pkl', weights_only=False)
+                policy_tensor = torch.load(filename + '-policy.pkl', weights_only=False)
+                value_tensor = torch.load(filename + '-value.pkl', weights_only=False)
             except FileNotFoundError as e:
                 print('Warning: could not find tensor data. ' + str(e))
                 return

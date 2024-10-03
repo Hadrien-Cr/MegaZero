@@ -110,6 +110,15 @@ def check_observation():
     game = Game()
     obs = game.observation()
     assert obs.shape == game.observation_size()
+    assert np.array_equal(obs[0,:,:], np.full_like(obs[0,:,:], 0))
+    assert np.array_equal(obs[1,:,:], np.full_like(obs[0,:,:], 0))
+    assert np.array_equal(obs[2,:,:], np.full_like(obs[0,:,:], 0))
+    assert np.array_equal(obs[3,:,:], np.full_like(obs[0,:,:], 0))
+    assert np.array_equal(obs[4,:,:], np.full_like(obs[0,:,:], 1))
+    assert np.array_equal(obs[5,:,:], np.full_like(obs[0,:,:], 0))
+    assert np.array_equal(obs[6,:,:], np.full_like(obs[0,:,:], 0))
+    assert np.array_equal(obs[7,:,:], np.full_like(obs[0,:,:], 0))
+    assert np.array_equal(obs[8,:,:], np.full_like(obs[0,:,:], 0))
 
 # Test 9: Pickleability
 def is_pickleable():

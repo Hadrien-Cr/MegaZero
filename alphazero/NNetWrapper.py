@@ -182,7 +182,7 @@ class NNetWrapper(BaseWrapper):
                 self.eta = bar.eta_td
 
                 # plot progress
-                bar.suffix = '({step}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | Loss_pi: {lpi:.4f} | Loss_v: {lv:.3f}'.format(
+                bar.suffix = '({step}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | Loss_pi: {lpi:.4f} | Loss_v: {lv:.3f}'.format(
                     step=self.current_step,
                     size=train_steps,
                     data=data_time.avg,

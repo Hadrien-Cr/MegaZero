@@ -26,9 +26,9 @@ class HumanConnect4Player(BasePlayer):
 class OneStepLookaheadConnect4Player(BasePlayer):
     """Simple player who always takes a win if presented, or blocks a loss if obvious, otherwise is random."""
 
-    def __init__(self, verbose=False):
+    def __init__(self, game_cls, args,verbose=False):
         self.verbose = verbose
-
+        self.args = args
     def play(self, state: GameState) -> int:
         valid_moves = state.valid_moves()
         win_move_set = set()

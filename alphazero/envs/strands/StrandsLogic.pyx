@@ -18,13 +18,13 @@ cdef class Board:
     """
 
     cdef public int width
-    cdef public int[:] hexes_to_labels
+    cdef public int[:,:] hexes_to_labels
     cdef int radius 
     
     cdef public int[:] hexes_available
     cdef public int digit_chosen
-    cdef public int tiles_left_to_place
-    cdef public int[:] hexes
+    cdef public int rest
+    cdef public int[:,:] hexes
     
     def __init__(self, int width):
         # Immutable
@@ -41,37 +41,38 @@ cdef class Board:
                                         [5, 3, 2, 2, 2, 2, 3, 5, 0, 0, 0],
                                         [5, 3, 3, 3, 3, 3, 5, 0, 0, 0, 0],
                                         [6, 5, 5, 5, 5, 6, 0, 0, 0, 0, 0]],
-                                        dtype = np.intc).flatten()
+                                        dtype = np.intc)
+
         self.hexes_available = np.array([0, 1, 36, 24, 0, 24, 6],dtype = np.intc)
         
 
         # Mutable (define the state)
-        self.hexes = np.zeros((self.width**2), dtype=np.intc)
+        self.hexes = np.zeros((self.width, self.width), dtype=np.intc)
         self.digit_chosen = 2
-        self.tiles_left_to_place = 1
+        self.rest = 1
 
     def __getstate__(self):
-        return self.digit_chosen, self.tiles_left_to_place, np.asarray(self.hexes_available), np.asarray(self.hexes)
+        return self.digit_chosen, self.rest, np.asarray(self.hexes_available), np.asarray(self.hexes)
     
     def __setstate__(self, state):
-        self.digit_chosen, self.tiles_left_to_place, hexes_available, hexes = state
+        self.digit_chosen, self.rest, hexes_available, hexes = state
         self.hexes = np.asarray(hexes)
-        self.hexes_available = np.asarray(self.hexes_available)
+        self.hexes_available = np.asarray(hexes_available)
 
-    def add_tile(self, int hex, int target):
+    def add_tile(self, int x, int y, int target):
 
-        if self.tiles_left_to_place == 0:
+        if self.rest == 0:
             raise ValueError(f"No more tiles can be placed, you have to choose a digit instead")
-        if self.hexes_to_labels[hex] != self.digit_chosen:
-            raise ValueError(f"Hex {hex//self.width,hex%self.width} with label {self.hexes_to_labels[hex]} is not valid for digit chosen {self.digit_chosen}")
-        if self.hexes[hex] != 0:
-            raise ValueError(f"Hex {hex//self.width,hex%self.width} already taken")
+        if self.hexes_to_labels[x,y] != self.digit_chosen:
+            raise ValueError(f"Hex {x,y} with label {self.hexes_to_labels[x,y]} is not valid for digit chosen {self.digit_chosen}")
+        if self.hexes[x,y] != 0:
+            raise ValueError(f"Hex {x,y} already taken")
 
-        self.hexes[hex] = target
-        self.tiles_left_to_place -= 1
+        self.hexes[x,y] = target
+        self.rest -= 1
         self.hexes_available[self.digit_chosen] -= 1
 
-        if self.tiles_left_to_place == 0:
+        if self.rest == 0:
             self.digit_chosen = 0
 
     def update_digit_chosen(self, int new_digit):
@@ -83,7 +84,7 @@ cdef class Board:
         if self.hexes_available[new_digit] <= 0:
             raise ValueError(f"Digit {new_digit} is not available (only {self.hexes_available[new_digit]} valid free hexes)")
 
-        self.tiles_left_to_place = min(self.digit_chosen, self.hexes_available[new_digit])
+        self.rest = min(self.digit_chosen, self.hexes_available[new_digit])
 
     cdef list[int] compute_neighbours(self, int x, int y):
         cdef list[tuple[int, int]] neighbours = []
@@ -100,43 +101,51 @@ cdef class Board:
         return abs(x + y - (self.width - 1)) > self.width // 2
 
     cdef int bfs(self, int x, int y, int target, int[:,:] visited):
-        if visited[x][y]:
+        if visited[x,y] or self.hexes[x,y]!= target:
             return 0
 
-        visited[x][y] = 1
+        visited[x,y] = 1
 
         cdef tuple[int, int] neighbour
         cdef int sum = 1        
-        if self.hexes[x*self.width + y] == target:
-            for neighbour in self.compute_neighbours(x, y):
-                sum += self.bfs(neighbour[0], neighbour[1], target, visited)
-            return sum
+        for neighbour in self.compute_neighbours(x, y):
+            sum += self.bfs(neighbour[0], neighbour[1], target, visited)
+        return sum
 
-        return 0
-
-    def compute_areas(self, int target):
+    def compute_areas(self):
         cdef int[:,:] visited = np.zeros((self.width, self.width), dtype=np.intc)
         cdef int x, y
 
         for x in range(self.width):
             for y in range(self.width):
                 if self.is_oob(x, y):
-                    visited[x][y] = 1
+                    visited[x,y] = 1
 
         cdef list[tuple[int, int]] visit_order = [(x, y) for y in range(self.width) for x in range(self.width)]
-        visit_order.sort(key=lambda p: abs(p[0] + p[1] - (self.width - 1)))
+        visit_order.sort(key=lambda p: abs(p[0] + (self.width - 1)//2) +  abs(p[1] - (self.width - 1)//2))
 
-        cdef list areas = []
+        cdef list areas_black = [0]
+        cdef list areas_white = [0]
+        cdef list areas_empty = [0]
         cdef int area
         cdef tuple[int, int] pos
 
         for pos in visit_order:
             if not visited[pos[0]][pos[1]]:
+                target = self.hexes[pos[0],pos[1]]
                 area = self.bfs(pos[0], pos[1], target, visited)
-                areas.append(area)
+                if target == 0:
+                    areas_empty.append(area)
+                elif target == 1:
+                    areas_black.append(area)
+                elif target == -1:
+                    areas_white.append(area)
 
-        areas.sort(reverse=True)
-        return areas
+        areas_black.sort(reverse=True)
+        areas_white.sort(reverse=True)
+        areas_empty.sort(reverse=True)
+
+        return areas_black, areas_white, areas_empty
 
     def __str__(self):
-        return str(np.asarray(self.tiles))
+        return str(np.asarray(self.hexes))

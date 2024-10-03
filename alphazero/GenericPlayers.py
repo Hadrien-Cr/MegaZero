@@ -148,6 +148,7 @@ class MCTSPlayer(BasePlayer):
                 policy = self.mcts.probs(gs, self.temp)
                 action = np.random.choice(len(policy), p=policy)
                 macro_action.append(macro_action)
+                gs.play_action(action)
             return macro_action
 
 

@@ -1,6 +1,6 @@
 from alphazero.Game import GameState
 from alphazero.GenericPlayers import BasePlayer
-
+from alphazero.MCTS import MCTS
 import numpy as np
 
 
@@ -26,8 +26,20 @@ class HumanConnect4dPlayer(BasePlayer):
 class OneStepLookaheadConnect4dPlayer(BasePlayer):
     """Simple player who always takes a win if presented, or blocks a loss if obvious, otherwise is random."""
 
-    def __init__(self, verbose=False):
+    def __init__(self, game_cls, args, verbose=False):
         self.verbose = verbose
+        self.args = args
+    
+    def update(self, state: GameState, action: int) -> None:
+        self.mcts.update_root(state, action)
+
+    def reset(self):
+        self.mcts = MCTS(self.args)
+
+    def play(self, state) -> int:
+        self.mcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+        self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
+        policy = self.mcts.probs(state, self.temp)
 
     def play(self, state: GameState) -> int:
         valid_moves = state.valid_moves()

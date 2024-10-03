@@ -157,7 +157,6 @@ class Arena:
         while not self.stop_event.is_set():
             while self.pause_event.is_set():
                 time.sleep(.1)
-            print("here")
             if not self.args.macro_act:
                 action = self.players[player_to_index[self.game_state.player]](self.game_state)
                 if self.stop_event.is_set() or not isinstance(action, int):
@@ -299,7 +298,7 @@ class Arena:
                 self.draws += draws
                 self.__update_winrates()
 
-                bar.suffix = '({eps}/{maxeps} Games) Winrates: {wr} | Eps Time: {et:.3f}s | Total: {total:} | ETA: {eta:}' \
+                bar.suffix = '({eps}/{maxeps} Games) Winrates: {wr} | Eps Time: {et:.3f}s | Total: {total:}' \
                     .format(
                         eps=size, maxeps=num, et=sample_time.avg, total=bar.elapsed_td, eta=bar.eta_td,
                         wr=[round(w, 3) for w in self.winrates()]

@@ -6,11 +6,13 @@ from alphazero.Coach import Coach, get_args
 from alphazero.NNetWrapper import NNetWrapper as nn
 from alphazero.envs.connect4.connect4 import Game
 from alphazero.GenericPlayers import RawMCTSPlayer
+from alphazero.envs.connect4.players import OneStepLookaheadConnect4Player
 from alphazero.utils import dotdict
 
 args = get_args(dotdict({
     'run_name': 'connect4_fpu',
     'macro_act': False,
+    'baselineTester': OneStepLookaheadConnect4Player,
     'workers': mp.cpu_count(),
     'startIter': 1,
     'numIters': 1000,
@@ -22,8 +24,8 @@ args = get_args(dotdict({
     'symmetricSamples': True,
     'skipSelfPlayIters': None,
     'selfPlayModelIter': None,
-    'numMCTSSims': 200,
-    'numFastSims': 40,
+    'numMCTSSims': 100,
+    'numFastSims': 100,
     'probFastSim': 0.75,
     'compareWithBaseline': True,
     'arenaCompareBaseline': 128,
