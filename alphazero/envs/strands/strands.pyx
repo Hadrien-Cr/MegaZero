@@ -9,21 +9,56 @@ from alphazero.envs.strands.StrandsLogic import Board
 
 import numpy as np
 
-DEFAULT_WIDTH = 11
-DEFAULT_HEIGHT = 11
-MAX_TURNS = 34
-NUM_PLAYERS = 2
-MULTI_PLANE_OBSERVATION = True
-NUM_CHANNELS = 9
+STRANDS_MODE = 'STRANDS_6'
+
+if STRANDS_MODE == 'STRANDS_6':
+    DEFAULT_WIDTH = 11
+    DEFAULT_HEIGHT = 11
+    MAX_TURNS = 34
+    NUM_PLAYERS = 2
+    MULTI_PLANE_OBSERVATION = True
+    NUM_CHANNELS = 9
+    DEFAULT_HEXES_TO_LABELS = np.array([[0, 0, 0, 0, 0, 6, 5, 5, 5, 5, 6],
+                                        [0, 0, 0, 0, 5, 3, 3, 3, 3, 3, 5],
+                                        [0, 0, 0, 5, 3, 2, 2, 2, 2, 3, 5],
+                                        [0, 0, 5, 3, 2, 2, 2, 2, 2, 3, 5],
+                                        [0, 5, 3, 2, 2, 2, 2, 2, 2, 3, 5],
+                                        [6, 3, 2, 2, 2, 1, 2, 2, 2, 3, 6],
+                                        [5, 3, 2, 2, 2, 2, 2, 2, 3, 5, 0],
+                                        [5, 3, 2, 2, 2, 2, 2, 3, 5, 0, 0],
+                                        [5, 3, 2, 2, 2, 2, 3, 5, 0, 0, 0],
+                                        [5, 3, 3, 3, 3, 3, 5, 0, 0, 0, 0],
+                                        [6, 5, 5, 5, 5, 6, 0, 0, 0, 0, 0]],
+                                        dtype = np.intc)
+    DEFAULT_HEXES_AVAILABLE = np.array([0, 1, 36, 24, 0, 24, 6],dtype = np.intc)
+
+elif STRANDS_MODE == 'STRANDS_5':
+    DEFAULT_WIDTH = 9
+    DEFAULT_HEIGHT = 9
+    MAX_TURNS = 23
+    NUM_PLAYERS = 2
+    MULTI_PLANE_OBSERVATION = True
+    NUM_CHANNELS = 9
+    DEFAULT_HEXES_TO_LABELS = np.array([[0, 0, 0, 0, 6, 4, 4, 4, 6],
+                                        [0, 0, 0, 4, 3, 3, 3, 3, 4],
+                                        [0, 0, 4, 3, 2, 2, 2, 3, 4],
+                                        [0, 4, 3, 2, 2, 2, 2, 3, 4],
+                                        [6, 3, 2, 2, 1, 2, 2, 3, 6],
+                                        [4, 3, 2, 2, 2, 2, 3, 4, 0],
+                                        [4, 3, 2, 2, 2, 3, 4, 0, 0],
+                                        [4, 3, 3, 3, 3, 4, 0, 0, 0],
+                                        [6, 4, 4, 4, 6, 0, 0, 0, 0]],
+                                        dtype = np.intc)
+    DEFAULT_HEXES_AVAILABLE = np.array([0, 1, 18, 18, 18, 0, 6],dtype = np.intc)
+
 class Game(GameState):
     """
     Game class for the game of strands
     
     Please check the rules here https://boardgamegeek.com/boardgame/364343/strands
     
-    A macro action is made of 2 phases:
-    - picking a digit d (from 1 to 6)
-    - placing d tiles labeled d on the empty hexes corresponding to the digit chosen 
+    The rules can be summarize as: each turn, 
+        placing d tiles labeled d on the empty hexes corresponding to the digit chosen 
     (if only p<d such hexes are available, place d tiles; p is denoted "rest" in the code)
 
     """
@@ -33,7 +68,9 @@ class Game(GameState):
 
     @staticmethod
     def _get_board():
-        return Board(width=DEFAULT_WIDTH)
+        return Board(width=DEFAULT_WIDTH, 
+                    default_hexes_to_labels = np.copy(DEFAULT_HEXES_TO_LABELS),
+                    default_hexes_available = np.copy(DEFAULT_HEXES_AVAILABLE))
 
     def __hash__(self):
         return hash(self._board.hexes.tobytes() + bytes([self._turns]) + bytes([self._player]))
@@ -74,59 +111,34 @@ class Game(GameState):
 
     @staticmethod
     def action_size() -> int:
-        return 7 + DEFAULT_WIDTH ** 2
+        return DEFAULT_WIDTH ** 2
 
     @staticmethod
     def observation_size() -> tuple[int, int, int]:
         return NUM_CHANNELS, DEFAULT_HEIGHT, DEFAULT_WIDTH
 
     def valid_moves(self):
-        valid = np.zeros((7 + DEFAULT_WIDTH**2), dtype=np.intc)
-
-        if self.micro_step == 0:  # Have to Select A Digit
-            if self._board.digit_chosen != 0:
-                raise ValueError(f"Cannot perform digit picking, digit_chosen already set to {self._board.digit_chosen}")
-            valid_digits = np.where(np.asarray(self._board.hexes_available) > 0, 1, 0)
-            valid[0:7] = valid_digits
-
-        elif self.micro_step < 7:
-            if self._board.rest == 0:
-                valid[0] = 1
-            else:
-                unoccupied_hexes =  np.where(np.asarray(self._board.hexes) == 0, 1, 0)
-                valid_hexes = np.where(np.asarray(self._board.hexes_to_labels) == self._board.digit_chosen, 1, 0)
-                valid[7::] = np.logical_and(valid_hexes, unoccupied_hexes).flatten()
-        else:
-            raise ValueError(f"Invalid micro_step, got {self.micro_step}, should be reset to 0")
-
+        valid = np.zeros((self.action_size(),), dtype=np.intc)
+        if self._board.rest > 0:
+            unoccupied_hexes =  np.where(np.asarray(self._board.hexes) == 0, 1, 0)
+            valid_hexes = np.where(np.asarray(self._board.hexes_to_labels) == self._board.digit_chosen, 1, 0)
+            valid = np.logical_and(valid_hexes, unoccupied_hexes).flatten()
+        
+        elif self._board.rest == 0:
+            unoccupied_hexes =  np.where(np.asarray(self._board.hexes) == 0, 1, 0)
+            valid_hexes = np.where(np.asarray(self._board.hexes_to_labels) != 0, 1, 0)
+            valid = np.logical_and(valid_hexes, unoccupied_hexes).flatten()
+        
         return valid
+
     def play_action(self, action: int) -> None:
         super().play_action(action)
-
-        # Skip Action
-        if action == 0:
-            if self._board.digit_chosen != 0:
-                raise ValueError("Cannot perform skip if the macro-action is already completed")
-
-        # Select A Digit
-        elif action <= 6:
-            if self.micro_step != 0:
-                raise ValueError(f"Cannot perform digit picking other than micro-step 0, got micro-step {self.micro_step}")
-            if self._board.digit_chosen != 0:
-                raise ValueError("Cannot overwrite digit chosen")
-
-            self._board.update_digit_chosen(new_digit=action)
-            self.micro_step+= 1 
-
-        # Place Tiles
-        elif action >= 7:
-            hex = action - 7
-            x, y = self.HexIndexingToXYIndexing(hex)
-            self._board.add_tile(x = x, y = y, target=(1, -1)[self.player])
-            self.micro_step+= 1 
-            
-            if self._board.rest == 0:
-                self._update_turn()
+        x, y = self.HexIndexingToXYIndexing(action)
+        self._board.add_tile(x = x, y = y, target=(1, -1)[self.player])
+        self.micro_step+= 1 
+        
+        if self._board.rest == 0:
+            self._update_turn()
 
     def observation(self):
         if MULTI_PLANE_OBSERVATION:
@@ -180,22 +192,21 @@ class Game(GameState):
         # (top left / bot right) diagonal symmetry
         new_state = self.clone()
         new_state._board.hexes = np.transpose(self._board.hexes)
-        new_pi = np.copy(pi)
-        new_pi[7:] = np.transpose(np.reshape(new_pi[7:],(DEFAULT_WIDTH,DEFAULT_WIDTH))).flatten()
+        new_pi = np.transpose(np.reshape(pi,(DEFAULT_WIDTH,DEFAULT_WIDTH))).flatten()
         data.append((new_state, new_pi))
         
         # (top right / bot left) diagonal symmetry
         new_state = self.clone()
         new_state._board.hexes = np.fliplr(np.transpose(np.fliplr(self._board.hexes)))
         new_pi = np.copy(pi)
-        new_pi[7:] = np.fliplr(np.transpose(np.fliplr(np.reshape(new_pi[7:], (DEFAULT_WIDTH, DEFAULT_WIDTH))))).flatten()
+        new_pi = np.fliplr(np.transpose(np.fliplr(np.reshape(pi, (DEFAULT_WIDTH, DEFAULT_WIDTH))))).flatten()
         data.append((new_state, new_pi))
         
         # center rotation
         new_state = self.clone()
         new_state._board.hexes = np.transpose(np.fliplr(np.transpose(np.fliplr(self._board.hexes))))
         new_pi = np.copy(pi)
-        new_pi[7:] = np.transpose(np.fliplr(np.transpose(np.fliplr(np.reshape(new_pi[7:], (DEFAULT_WIDTH, DEFAULT_WIDTH)))))).flatten()
+        new_pi = np.transpose(np.fliplr(np.transpose(np.fliplr(np.reshape(pi, (DEFAULT_WIDTH, DEFAULT_WIDTH)))))).flatten()
         data.append((new_state, new_pi))
 
         return data

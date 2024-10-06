@@ -12,7 +12,6 @@ class Heuristics(BaseWrapper):
     def predict(self, obs: np.ndarray):
         state = self.game_cls()
         state._board.hexes = np.copy(obs[0,:])
-
         # Value estimate
         # heuritic for value estimation: (black - white) / (1+ empty)
         areas_black, areas_white, areas_empty = state._board.compute_areas()
@@ -30,17 +29,12 @@ class Heuristics(BaseWrapper):
 
         color = [1,-1][state._player] 
         tiles = color*np.where(np.asarray(state._board.hexes, dtype = np.float32) == color, 1, 0) 
-        neighbour_filter = np.array([[0,1,1],
+        neighbour_filter = (1/6)*np.array([[0,1,1],
                                     [1,0,1],
                                     [1,1,0]], dtype=np.float32)
         
-        pi_hexes = 0.001*np.full_like(tiles, 1) + signal.convolve2d(tiles, neighbour_filter, mode='same')
-
-        pi_digits = np.array([0,1,2,3,4,5,6], dtype=np.float32)
-        
-        #combine back the policy
-        pi[0:7] = pi_digits
-        pi[7:] = pi_hexes.flatten()
+        pi_hexes = 0.1*np.asarray(state._board.hexes_to_labels) + signal.convolve2d(tiles, neighbour_filter, mode='same')
+        pi = pi_hexes.flatten()
         
         return np.asarray(pi, dtype=np.float32), values
     
@@ -78,10 +72,12 @@ class MCTSPlayerWithHeuristics(BasePlayer):
         self.mcts = MCTS(self.args)
 
     def play(self, state) -> int:
-        self.mcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
-        self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
+        
 
         if not self.args.macro_act:
+            self.reset()
+            self.mcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+            self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
             policy = self.mcts.probs(state, self.temp)
             action = np.random.choice(len(policy), p=policy)
             return action
@@ -91,10 +87,14 @@ class MCTSPlayerWithHeuristics(BasePlayer):
             current_player = state._player
             gs = state.clone()
             while gs._player == current_player:
+                self.reset()
+                self.mcts.search(gs, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+                self.temp = self.args.temp_scaling_fn(self.temp, gs.turns, state.max_turns())
                 policy = self.mcts.probs(gs, self.temp)
                 action = np.random.choice(len(policy), p=policy)
                 macro_action.append(action)
                 gs.play_action(action)
+                
             return macro_action
 
 
@@ -112,18 +112,17 @@ class OneStepLookAheadPlayerWithHeuristics(BasePlayer):
     def requires_model() -> bool:
         return True
     
-    def one_step_look_ahead(self, state):
-        pi = np.zeros(state.action_size(), dtype=np.float32)
+    def one_step_look_ahead(self, state): 
         best_action, best_value = 0, -np.inf
         for action,is_valid in enumerate(state.valid_moves()):
             if is_valid:
                 gs = state.clone()
                 gs.play_action(action)
-                pi, value= self.nn(state.observation())
+                pi, value = self.nn(state.observation())
                 if value[state._player] > best_value:
                     best_action, best_value = action, value[state._player]
-        pi/= np.sum(pi)
-        return best_action, pi
+        
+        return best_action, np.zeros(state.action_size(), dtype=np.float32)
     
     def play(self, state) -> int:
         if not self.args.macro_act:

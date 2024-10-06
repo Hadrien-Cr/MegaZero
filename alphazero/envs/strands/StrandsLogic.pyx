@@ -26,25 +26,14 @@ cdef class Board:
     cdef public int rest
     cdef public int[:,:] hexes
     
-    def __init__(self, int width):
+    def __init__(self, int width, 
+                int[:] default_hexes_available, 
+                int[:,:] default_hexes_to_labels):
         # Immutable
         self.width = width
         self.radius = (width+1) //2
-        self.hexes_to_labels = np.array([    [0, 0, 0, 0, 0, 6, 5, 5, 5, 5, 6],
-                                        [0, 0, 0, 0, 5, 3, 3, 3, 3, 3, 5],
-                                        [0, 0, 0, 5, 3, 2, 2, 2, 2, 3, 5],
-                                        [0, 0, 5, 3, 2, 2, 2, 2, 2, 3, 5],
-                                        [0, 5, 3, 2, 2, 2, 2, 2, 2, 3, 5],
-                                        [6, 3, 2, 2, 2, 1, 2, 2, 2, 3, 6],
-                                        [5, 3, 2, 2, 2, 2, 2, 2, 3, 5, 0],
-                                        [5, 3, 2, 2, 2, 2, 2, 3, 5, 0, 0],
-                                        [5, 3, 2, 2, 2, 2, 3, 5, 0, 0, 0],
-                                        [5, 3, 3, 3, 3, 3, 5, 0, 0, 0, 0],
-                                        [6, 5, 5, 5, 5, 6, 0, 0, 0, 0, 0]],
-                                        dtype = np.intc)
-
-        self.hexes_available = np.array([0, 1, 36, 24, 0, 24, 6],dtype = np.intc)
-        
+        self.hexes_available = default_hexes_available
+        self.hexes_to_labels = default_hexes_to_labels
 
         # Mutable (define the state)
         self.hexes = np.zeros((self.width, self.width), dtype=np.intc)
@@ -60,11 +49,9 @@ cdef class Board:
         self.hexes_available = np.asarray(hexes_available)
 
     def add_tile(self, int x, int y, int target):
-
-        if self.rest == 0:
-            raise ValueError(f"No more tiles can be placed, you have to choose a digit instead")
-        if self.hexes_to_labels[x,y] != self.digit_chosen:
-            raise ValueError(f"Hex {x,y} with label {self.hexes_to_labels[x,y]} is not valid for digit chosen {self.digit_chosen}")
+        assert self.hexes_to_labels[x][y]>0, f"Hex {x,y} is out of valid bounds"
+        if self.digit_chosen == 0:
+            self.update_digit_chosen(self.hexes_to_labels[x][y])
         if self.hexes[x,y] != 0:
             raise ValueError(f"Hex {x,y} already taken")
 
@@ -76,9 +63,6 @@ cdef class Board:
             self.digit_chosen = 0
 
     def update_digit_chosen(self, int new_digit):
-        if not (1 <= new_digit <= 6): 
-            raise ValueError(f"Invalid digit {new_digit}.")
-        
         self.digit_chosen = new_digit
 
         if self.hexes_available[new_digit] <= 0:
