@@ -46,10 +46,16 @@ class BasePlayer(ABC):
 
 class RandomPlayer(BasePlayer):
     def play(self, state):
-        valids = state.valid_moves()
-        valids = valids / np.sum(valids)
-        a = np.random.choice(state.action_size(), p=valids)
-        return a
+        macro_action = []
+        current_player = state._player
+        gs = state.clone()
+        while gs._player == current_player:
+            valids = gs.valid_moves()
+            valids = valids / np.sum(valids)
+            action = np.random.choice(gs.action_size(), p=valids)
+            macro_action.append(action)
+            gs.play_action(action)
+        return macro_action
 
 
 class NNPlayer(BasePlayer):
@@ -131,26 +137,49 @@ class MCTSPlayer(BasePlayer):
         self.mcts = MCTS(self.args)
 
     def play(self, state) -> int:
-        self.mcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+        
         self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
-        policy = self.mcts.probs(state, self.temp)
 
-        if not self.args.macro_act:
-            policy = self.mcts.probs(state, self.temp)
-            action = np.random.choice(len(policy), p=policy)
-            return action
-
-        elif self.args.macro_act:
+        if self.args.self_play_search_strategy == "VANILLA-MCTS":
+            self.reset()
+            
             macro_action = []
             current_player = state._player
             gs = state.clone()
+
+            self.mcts.raw_search(gs, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+
             while gs._player == current_player:
-                policy = self.mcts.probs(gs, self.temp)
-                action = np.random.choice(len(policy), p=policy)
-                macro_action.append(macro_action)
-                gs.play_action(action)
+                try:
+                    policy = self.mcts.probs(gs, self.temp)
+                    action = np.random.choice(len(policy), p=policy)
+                    macro_action.append(action)
+                    gs.play_action(action)
+                    self.update(gs, action)
+                except:
+                    p, v = self.nn(state.observation())
+                    policy = gs.valid_moves()*p
+                    policy/=np.sum(policy)
+                    action = np.random.choice(len(policy), p=policy)
+                    macro_action.append(action)
+                    gs.play_action(action)
             return macro_action
 
+        elif self.args.self_play_search_strategy == "BB-MCTS":
+            self.reset()
+
+            macro_action = []
+            current_player = state._player
+            gs = state.clone()
+
+            while gs._player == current_player:
+                self.mcts.raw_search(gs, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+                policy = self.mcts.probs(gs, self.temp)
+                action = np.random.choice(len(policy), p=policy)
+                macro_action.append(action)
+                gs.play_action(action)
+                self.update(gs, action)
+            return macro_action
 
     def process(self, *args, **kwargs):
         return self.nn.process(*args, **kwargs)
@@ -162,7 +191,6 @@ class RawMCTSPlayer(MCTSPlayer):
         self._POLICY_SIZE = self.game_cls.action_size()
         self._POLICY_FILL_VALUE = 1 / self._POLICY_SIZE
         self._VALUE_SIZE = self.game_cls.num_players() + 1
-
     @staticmethod
     def supports_process() -> bool:
         return True
@@ -172,22 +200,47 @@ class RawMCTSPlayer(MCTSPlayer):
         return False
 
     def play(self, state) -> int:
-        self.mcts.raw_search(state, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+        
         self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
 
-        if not self.args.macro_act:
-            policy = self.mcts.probs(state, self.temp)
-            action = np.random.choice(len(policy), p=policy)
-            return action
-
-        elif self.args.macro_act:
+        if self.args.baseline_search_strategy == "VANILLA-MCTS":
+            self.reset()
+            
             macro_action = []
             current_player = state._player
             gs = state.clone()
+
+            self.mcts.raw_search(state, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+
             while gs._player == current_player:
+                try:
+                    policy = self.mcts.probs(gs, self.temp)
+                    action = np.random.choice(len(policy), p=policy)
+                    macro_action.append(action)
+                    gs.play_action(action)
+                    self.update(gs, action)
+                except:
+                    policy = gs.valid_moves()*(self._POLICY_FILL_VALUE*np.ones(self._POLICY_SIZE))
+                    policy/= np.sum(policy)
+                    action = np.random.choice(len(policy), p=policy)
+                    macro_action.append(action)
+                    gs.play_action(action)
+            return macro_action
+
+        elif self.args.baseline_search_strategy == "BB-MCTS":
+            self.reset()
+
+            macro_action = []
+            current_player = state._player
+            gs = state.clone()
+
+            while gs._player == current_player:
+                self.mcts.raw_search(gs, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
                 policy = self.mcts.probs(gs, self.temp)
                 action = np.random.choice(len(policy), p=policy)
-                macro_action.append(macro_action)
+                macro_action.append(action)
+                gs.play_action(action)
+                self.update(gs, action)
             return macro_action
 
     def process(self, batch: torch.Tensor):

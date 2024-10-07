@@ -63,7 +63,9 @@ self.compareToPast() # Arena MCTSPlayer(net iter n) vs MCTSPlayer(net iter n-1)
 
 ### Description of some hyperparameters
 
-**`macro_act`:** Whether or not to perform *macro acting* If set to true, all players will perform a macro-action after each MCTS search, instead of a micro-action. It is way quicker but also less more precise, so it requires more many MCTS iterations.
+**`search_strategy`:** Which search strategy to use. Currently available:
+    - Vanilla-MCTS (constructs the whole tree, and constuct the turn by picking atoimic actions) 
+    - BB-MCTS (construct the tree, take a micro-action, and repeat)
 
 **`workers`:** Number of processes used for self play, Arena comparison, and training the model. Should generally be set to the number of processors - 1.
 

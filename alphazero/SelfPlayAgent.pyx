@@ -84,6 +84,7 @@ class SelfPlayAgent(mp.Process):
                 self.fast = np.random.random_sample() < self.args.probFastSim
                 sims = self.args.numFastSims if self.fast else self.args.numMCTSSims \
                     if not self._is_warmup else self.args.numWarmupSims
+                
                 for _ in range(sims):
                     if self.stop_event.is_set(): break
                     self.generateBatch()
@@ -157,8 +158,7 @@ class SelfPlayAgent(mp.Process):
                 self.temps[i], self.games[i].turns, self.game_cls.max_turns()
             ) if not self._is_arena else self.args.arenaTemp
             
-            
-            if not self.args.macro_act:
+            if self.args.self_play_search_strategy == "BB-MCTS":
                 policy = self._mcts(i).probs(self.games[i], self.temps[i])
                 action = np.random.choice(self.games[i].action_size(), p=policy)
                 if not self.fast and not self._is_arena:
@@ -174,12 +174,11 @@ class SelfPlayAgent(mp.Process):
                 self.games[i].play_action(action)
                 
 
-            elif self.args.macro_act:
+            if self.args.self_play_search_strategy == "VANILLA-MCTS":
                 current_player = self.games[i].clone()._player
                 while  self.games[i]._player == current_player and not self.games[i].win_state().any():
                     self._mcts(i).raw_search(self.games[i], 1, 0, 0)
                     policy = self._mcts(i).probs(self.games[i], self.temps[i])
-
                     action = np.random.choice(self.games[i].action_size(), p=policy)
                     if not self.fast and not self._is_arena:
                         self.histories[i].append((

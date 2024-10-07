@@ -23,12 +23,12 @@ class Heuristics(BaseWrapper):
 
         # Policy estimate
         # The hex probability is proportionnal to the number of neighbouring hexes of the correct color
-        # This performed by computing the convolution between the board "black"(assuming the player is the player black) 
+        # This performed by computing the convolution between the board "black"(assuming the current player is the player black) 
         # and the filter ([0,1,1],[1,0,1],[1,1,0])
         pi = np.zeros(state.action_size(), dtype=np.float32)
 
         color = [1,-1][state._player] 
-        tiles = color*np.where(np.asarray(state._board.hexes, dtype = np.float32) == color, 1, 0) 
+        tiles = np.where(np.asarray(state._board.hexes, dtype = np.float32) == color, 1, 0) 
         neighbour_filter = (1/6)*np.array([[0,1,1],
                                     [1,0,1],
                                     [1,1,0]], dtype=np.float32)
@@ -56,9 +56,9 @@ class MCTSPlayerWithHeuristics(BasePlayer):
         self.draw_depth = draw_depth
         self.nn = Heuristics(self.game_cls, self.args)
         self.reset()
-        
     @staticmethod
     def supports_process() -> bool:
+
         return True
 
     @staticmethod
@@ -72,29 +72,47 @@ class MCTSPlayerWithHeuristics(BasePlayer):
         self.mcts = MCTS(self.args)
 
     def play(self, state) -> int:
-        
-
-        if not self.args.macro_act:
+        self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
+    
+        if self.args.baseline_search_strategy == "VANILLA-MCTS":
             self.reset()
-            self.mcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
-            self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
-            policy = self.mcts.probs(state, self.temp)
-            action = np.random.choice(len(policy), p=policy)
-            return action
-
-        elif self.args.macro_act:
+            
             macro_action = []
             current_player = state._player
             gs = state.clone()
+
+            self.mcts.search(gs, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+
             while gs._player == current_player:
-                self.reset()
+                try:
+                    policy = self.mcts.probs(gs, self.temp)
+                    action = np.random.choice(len(policy), p=policy)
+                    macro_action.append(action)
+                    gs.play_action(action)
+                    self.update(gs, action)
+                except:
+                    p, v = self.nn(gs.observation())
+                    policy = gs.valid_moves()*p
+                    policy/=np.sum(policy)
+                    action = np.random.choice(len(policy), p=policy)
+                    macro_action.append(action)
+                    gs.play_action(action)
+            return macro_action
+
+        elif self.args.baseline_search_strategy == "BB-MCTS":
+            self.reset()
+
+            macro_action = []
+            current_player = state._player
+            gs = state.clone()
+
+            while gs._player == current_player:
                 self.mcts.search(gs, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
-                self.temp = self.args.temp_scaling_fn(self.temp, gs.turns, state.max_turns())
                 policy = self.mcts.probs(gs, self.temp)
                 action = np.random.choice(len(policy), p=policy)
                 macro_action.append(action)
                 gs.play_action(action)
-                
+                self.update(gs, action)
             return macro_action
 
 

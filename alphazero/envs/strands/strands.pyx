@@ -12,12 +12,10 @@ import numpy as np
 STRANDS_MODE = 'STRANDS_6'
 
 if STRANDS_MODE == 'STRANDS_6':
-    DEFAULT_WIDTH = 11
-    DEFAULT_HEIGHT = 11
+    DEFAULT_WIDTH, DEFAULT_HEIGHT = 11, 11
     MAX_TURNS = 34
     NUM_PLAYERS = 2
-    MULTI_PLANE_OBSERVATION = True
-    NUM_CHANNELS = 9
+    MULTI_PLANE_OBSERVATION, NUM_CHANNELS = True, 9
     DEFAULT_HEXES_TO_LABELS = np.array([[0, 0, 0, 0, 0, 6, 5, 5, 5, 5, 6],
                                         [0, 0, 0, 0, 5, 3, 3, 3, 3, 3, 5],
                                         [0, 0, 0, 5, 3, 2, 2, 2, 2, 3, 5],
@@ -33,12 +31,10 @@ if STRANDS_MODE == 'STRANDS_6':
     DEFAULT_HEXES_AVAILABLE = np.array([0, 1, 36, 24, 0, 24, 6],dtype = np.intc)
 
 elif STRANDS_MODE == 'STRANDS_5':
-    DEFAULT_WIDTH = 9
-    DEFAULT_HEIGHT = 9
+    DEFAULT_WIDTH, DEFAULT_HEIGHT = 9, 9
     MAX_TURNS = 23
     NUM_PLAYERS = 2
-    MULTI_PLANE_OBSERVATION = True
-    NUM_CHANNELS = 9
+    MULTI_PLANE_OBSERVATION, NUM_CHANNELS = True, 9
     DEFAULT_HEXES_TO_LABELS = np.array([[0, 0, 0, 0, 6, 4, 4, 4, 6],
                                         [0, 0, 0, 4, 3, 3, 3, 3, 4],
                                         [0, 0, 4, 3, 2, 2, 2, 3, 4],

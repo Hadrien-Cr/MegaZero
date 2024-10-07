@@ -157,22 +157,13 @@ class Arena:
         while not self.stop_event.is_set():
             while self.pause_event.is_set():
                 time.sleep(.1)
-            if not self.args.macro_act:
-                action = self.players[player_to_index[self.game_state.player]](self.game_state)
-                if self.stop_event.is_set() or not isinstance(action, int):
-                    break
-
+            macro_action = self.players[player_to_index[self.game_state.player]](self.game_state)
+            if self.stop_event.is_set() or not isinstance(macro_action, list):
+                break
+                
+            for action in macro_action:
                 [p.update(self.game_state, action) for p in self.players]
                 self.game_state.play_action(action)
-
-            elif self.args.macro_act:
-                macro_action = self.players[player_to_index[self.game_state.player]](self.game_state)
-                if self.stop_event.is_set() or not isinstance(action, list):
-                    break
-                
-                for action in macro_action:
-                    [p.update(self.game_state, action) for p in self.players]
-                    self.game_state.play_action(action)
 
             winstate = self.game_state.win_state()
 

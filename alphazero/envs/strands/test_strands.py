@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from alphazero.envs.strands.strands import Game, DEFAULT_WIDTH, MAX_TURNS, STRANDS_MODE
+from alphazero.GenericPlayers import RawMCTSPlayer, RandomPlayer
 import dill as pickle
 '''
 Run this test: 
@@ -148,7 +149,7 @@ def test_symmetries():
 def test_game_ended():
     # Initial State
     game = Game()
-    assert np.array_equal(game.win_state(), np.array([False, False, False], dtype = np.intc)) # Player 1 wins with a diagonal
+    assert np.array_equal(game.win_state(), np.array([False, False, False], dtype = np.intc)) 
     if STRANDS_MODE == "STRANDS_6":
         # Winning terminal state for white (player2)
         reference = np.array([
@@ -220,7 +221,7 @@ def test_immutable_move():
 # Test 7: Random Rollout
 def test_rollout():
     game = Game()
-    while np.array_equal(game.win_state(), np.array([False, False, False])):
+    while not game.win_state().any():
         valid_actions = game.valid_moves()
         true_indices = np.where(valid_actions)[0]
         action = np.random.choice(true_indices).item()
@@ -242,24 +243,28 @@ def is_pickleable():
 
 # Test 10: Heuristic Agent
 def test_heuristic_agent():
-    game = Game()
+    
     from alphazero.envs.strands.players import MCTSPlayerWithHeuristics, OneStepLookAheadPlayerWithHeuristics
     from alphazero.envs.strands.train import args
     import alphazero.Coach as c
+    from random import shuffle
     args =  c.get_args(args)
     args['_num_players'] = 2
-    args['macro_act'] = True
 
-    agent1 = MCTSPlayerWithHeuristics(Game,args)
-    agent2 = OneStepLookAheadPlayerWithHeuristics(Game,args)
-
-    while np.array_equal(game.win_state(), np.array([False, False, False])):
-        if game._turns % 2 == 0:
-            M = agent1.play(game)
-        else:
-            M = agent2.play(game)
-        for m in M:
-            game.play_action(m)
+    agents = [
+                MCTSPlayerWithHeuristics(Game,args),
+                OneStepLookAheadPlayerWithHeuristics(Game,args),
+                RawMCTSPlayer(Game, args),
+                RandomPlayer(Game),
+            ]
+    
+    for games in range(10):
+        shuffle(agents)
+        game = Game()
+        while not game.win_state().any():
+            M = agents[game._turns%(len(agents))].play(game)
+            for m in M:
+                game.play_action(m)
 
 
 if __name__ == "__main__":
