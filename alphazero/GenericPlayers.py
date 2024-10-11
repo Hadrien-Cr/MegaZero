@@ -46,16 +46,14 @@ class BasePlayer(ABC):
 
 class RandomPlayer(BasePlayer):
     def play(self, state):
-        macro_action = []
+        turn = []
         current_player = state._player
-        gs = state.clone()
-        while gs._player == current_player:
-            valids = gs.valid_moves()
+        while state._player == current_player:
+            valids = state.valid_moves()
             valids = valids / np.sum(valids)
-            action = np.random.choice(gs.action_size(), p=valids)
-            macro_action.append(action)
-            gs.play_action(action)
-        return macro_action
+            action = np.random.choice(state.action_size(), p=valids)
+            turn.append(action)
+            state.play_action(action)
 
 
 class NNPlayer(BasePlayer):
@@ -73,31 +71,25 @@ class NNPlayer(BasePlayer):
         return True
 
     def play(self, state) -> int:
-        policy, _ = self.nn.predict(state.observation())
-        valids = state.valid_moves()
-        options = policy * valids
-        self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
-        if self.temp == 0:
-            bestA = np.argmax(options)
-            probs = [0] * len(options)
-            probs[bestA] = 1
-        else:
-            probs = [x ** (1. / self.temp) for x in options]
-            probs /= np.sum(probs)
+        current_player = state._player
+        while state._player == current_player and not state.win_state().any():
+            policy, _ = self.nn.predict(state.observation())
+            valids = state.valid_moves()
+            options = policy * valids
+            self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
+            if self.temp == 0:
+                bestA = np.argmax(options)
+                probs = [0] * len(options)
+                probs[bestA] = 1
+            else:
+                probs = [x ** (1. / self.temp) for x in options]
+                probs /= np.sum(probs)
 
-        choice = np.random.choice(
-            np.arange(state.action_size()), p=probs
-        )
+            choice = np.random.choice(
+                np.arange(state.action_size()), p=probs
+            ).item()
 
-        if valids[choice] == 0:
-            print()
-            print(self.temp)
-            print(valids)
-            print(policy)
-            print(probs)
-            assert valids[choice] > 0
-
-        return choice
+            state.play_action(choice)
 
     def process(self, *args, **kwargs):
         return self.nn.process(*args, **kwargs)
@@ -137,49 +129,20 @@ class MCTSPlayer(BasePlayer):
         self.mcts = MCTS(self.args)
 
     def play(self, state) -> int:
-        
         self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
-
-        if self.args.self_play_search_strategy == "VANILLA-MCTS":
+        
+        if self.args.baseline_search_strategy == "VANILLA-MCTS":
             self.reset()
-            
-            macro_action = []
-            current_player = state._player
-            gs = state.clone()
+            self.mcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+            while not self.mcts.turn_completed:
+                self.mcts.search(state, self.nn, 1, self.args.add_root_noise, self.args.add_root_temp)
+                self.mcts.update_turn(state, self.temp)
 
-            self.mcts.raw_search(gs, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
-
-            while gs._player == current_player:
-                try:
-                    policy = self.mcts.probs(gs, self.temp)
-                    action = np.random.choice(len(policy), p=policy)
-                    macro_action.append(action)
-                    gs.play_action(action)
-                    self.update(gs, action)
-                except:
-                    p, v = self.nn(state.observation())
-                    policy = gs.valid_moves()*p
-                    policy/=np.sum(policy)
-                    action = np.random.choice(len(policy), p=policy)
-                    macro_action.append(action)
-                    gs.play_action(action)
-            return macro_action
-
-        elif self.args.self_play_search_strategy == "BB-MCTS":
+        elif self.args.baseline_search_strategy == "BB-MCTS":
             self.reset()
-
-            macro_action = []
-            current_player = state._player
-            gs = state.clone()
-
-            while gs._player == current_player:
-                self.mcts.raw_search(gs, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
-                policy = self.mcts.probs(gs, self.temp)
-                action = np.random.choice(len(policy), p=policy)
-                macro_action.append(action)
-                gs.play_action(action)
-                self.update(gs, action)
-            return macro_action
+            while not self.mcts.turn_completed:
+                self.mcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+                self.mcts.update_turn(state, self.temp)
 
     def process(self, *args, **kwargs):
         return self.nn.process(*args, **kwargs)
@@ -205,43 +168,16 @@ class RawMCTSPlayer(MCTSPlayer):
 
         if self.args.baseline_search_strategy == "VANILLA-MCTS":
             self.reset()
-            
-            macro_action = []
-            current_player = state._player
-            gs = state.clone()
-
             self.mcts.raw_search(state, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
-
-            while gs._player == current_player:
-                try:
-                    policy = self.mcts.probs(gs, self.temp)
-                    action = np.random.choice(len(policy), p=policy)
-                    macro_action.append(action)
-                    gs.play_action(action)
-                    self.update(gs, action)
-                except:
-                    policy = gs.valid_moves()*(self._POLICY_FILL_VALUE*np.ones(self._POLICY_SIZE))
-                    policy/= np.sum(policy)
-                    action = np.random.choice(len(policy), p=policy)
-                    macro_action.append(action)
-                    gs.play_action(action)
-            return macro_action
+            while not self.mcts.turn_completed:
+                self.mcts.raw_search(state, 1, self.args.add_root_noise, self.args.add_root_temp)
+                self.mcts.update_turn(state, self.temp)
 
         elif self.args.baseline_search_strategy == "BB-MCTS":
             self.reset()
-
-            macro_action = []
-            current_player = state._player
-            gs = state.clone()
-
-            while gs._player == current_player:
-                self.mcts.raw_search(gs, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
-                policy = self.mcts.probs(gs, self.temp)
-                action = np.random.choice(len(policy), p=policy)
-                macro_action.append(action)
-                gs.play_action(action)
-                self.update(gs, action)
-            return macro_action
+            while not self.mcts.turn_completed:
+                self.mcts.raw_search(state, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+                self.mcts.update_turn(state, self.temp)
 
     def process(self, batch: torch.Tensor):
         return torch.full((batch.shape[0], self._POLICY_SIZE), self._POLICY_FILL_VALUE).to(batch.device), \

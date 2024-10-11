@@ -1,8 +1,8 @@
 import pytest
 import numpy as np
 from alphazero.envs.strands.strands import Game, DEFAULT_WIDTH, MAX_TURNS, STRANDS_MODE
-from alphazero.GenericPlayers import RawMCTSPlayer, RandomPlayer
 import dill as pickle
+
 '''
 Run this test: 
 python3 -m alphazero.envs.strands.test_strands
@@ -244,27 +244,37 @@ def is_pickleable():
 # Test 10: Heuristic Agent
 def test_heuristic_agent():
     
-    from alphazero.envs.strands.players import MCTSPlayerWithHeuristics, OneStepLookAheadPlayerWithHeuristics
+    from alphazero.envs.strands.heuristic import StrandsHeuristics
+    from alphazero.GenericPlayers import MCTSPlayer, NNPlayer,RawMCTSPlayer, RandomPlayer
     from alphazero.envs.strands.train import args
     import alphazero.Coach as c
     from random import shuffle
     args =  c.get_args(args)
     args['_num_players'] = 2
+    args['numMCTSSims'] = 100
 
     agents = [
-                MCTSPlayerWithHeuristics(Game,args),
-                OneStepLookAheadPlayerWithHeuristics(Game,args),
+                MCTSPlayer(StrandsHeuristics(Game,args), Game, args),
+                NNPlayer(StrandsHeuristics(Game,args), Game, args),
                 RawMCTSPlayer(Game, args),
                 RandomPlayer(Game),
             ]
     
+    args['baseline_search_strategy'] = "VANILLA-MCTS"
+
     for games in range(10):
         shuffle(agents)
         game = Game()
         while not game.win_state().any():
-            M = agents[game._turns%(len(agents))].play(game)
-            for m in M:
-                game.play_action(m)
+            agents[game._turns%(len(agents))].play(game)
+    
+    args['baseline_search_strategy'] = "BB-MCTS"
+
+    for games in range(10):
+        shuffle(agents)
+        game = Game()
+        while not game.win_state().any():
+            agents[game._turns%(len(agents))].play(game)
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ STRANDS_MODE = 'STRANDS_6'
 if STRANDS_MODE == 'STRANDS_6':
     DEFAULT_WIDTH, DEFAULT_HEIGHT = 11, 11
     MAX_TURNS = 34
+    AVG_ATOMIC_ACTIONS = 91 / MAX_TURNS
     NUM_PLAYERS = 2
     MULTI_PLANE_OBSERVATION, NUM_CHANNELS = True, 9
     DEFAULT_HEXES_TO_LABELS = np.array([[0, 0, 0, 0, 0, 6, 5, 5, 5, 5, 6],
@@ -34,6 +35,7 @@ elif STRANDS_MODE == 'STRANDS_5':
     DEFAULT_WIDTH, DEFAULT_HEIGHT = 9, 9
     MAX_TURNS = 23
     NUM_PLAYERS = 2
+    AVG_ATOMIC_ACTIONS = 61 / MAX_TURNS
     MULTI_PLANE_OBSERVATION, NUM_CHANNELS = True, 9
     DEFAULT_HEXES_TO_LABELS = np.array([[0, 0, 0, 0, 6, 4, 4, 4, 6],
                                         [0, 0, 0, 4, 3, 3, 3, 3, 4],
@@ -45,7 +47,7 @@ elif STRANDS_MODE == 'STRANDS_5':
                                         [4, 3, 3, 3, 3, 4, 0, 0, 0],
                                         [6, 4, 4, 4, 6, 0, 0, 0, 0]],
                                         dtype = np.intc)
-    DEFAULT_HEXES_AVAILABLE = np.array([0, 1, 18, 18, 18, 0, 6],dtype = np.intc)
+    DEFAULT_HEXES_AVAILABLE = np.array([0, 1, 18, 18, 18, 0, 6], dtype = np.intc)
 
 class Game(GameState):
     """
@@ -92,6 +94,10 @@ class Game(GameState):
         game.last_action = self.last_action
 
         return game
+
+    @staticmethod
+    def avg_atomic_actions():
+        return AVG_ATOMIC_ACTIONS
 
     @staticmethod
     def max_turns() -> int:

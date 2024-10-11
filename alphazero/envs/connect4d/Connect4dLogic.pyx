@@ -111,7 +111,7 @@ cdef class Board:
                     if good:
                         return (True, player)
 
-            # Additionnal rule
+            # Additionnal rule: depth ++ row ++ 
             for r in range(self.height - self.win_length + 1):
                 for c in range(0, self.width):
                     good = True
@@ -121,6 +121,18 @@ cdef class Board:
                             break
                     if good:
                         return (True, player)
+
+            # Additionnal rule: depth ++ col ++ 
+            for r in range(self.height - self.win_length + 1):
+                for c in range(0, self.width):
+                    good = True
+                    for x in range(self.win_length):
+                        if sub_board+x >= self.num_boards or self.pieces[sub_board + x, r + x, c] != player:
+                            good = False
+                            break
+                    if good:
+                        return (True, player)              
+
                         
         # Check for draw
         if sum(self.get_valid_moves(sub_board=sub_board)) == 0:

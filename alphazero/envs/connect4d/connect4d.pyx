@@ -49,6 +49,10 @@ class Game(GameState):
         game.last_action = self.last_action
         
         return game
+    
+    @staticmethod
+    def avg_atomic_actions() -> int:
+        return NUM_BOARDS
 
     @staticmethod
     def max_turns() -> int:

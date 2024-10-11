@@ -43,8 +43,15 @@ def rebuild_node(children, a, cpuct, num_players, e, q, n, p, player):
 
     return node
 """
-
-
+cdef class Mutation:
+    cdef public int step
+    cdef public int a
+    def __init__(int a, int step):
+        self.step = s
+        self.a = a
+    def __eq__(Mutation other):
+        self.step == other.step
+        self.a = other.a
 # @cython.auto_pickle(True)
 cdef class Node:
     cdef public list _children
@@ -56,14 +63,14 @@ cdef class Node:
     cdef public float p
     cdef public int player
 
-    def __init__(self, int action, int num_players):
+    def __init__(self, Mutation m, int num_players):
         self._children = []
-        self.a = action
+        self.mutation = m
         self.e = np.zeros(num_players, dtype=np.uint8)
         self.q = 0
         self.v = 0
         self.n = 0
-        self.p = 0
+        self.p = 0 # prior proba to reach this node from his parent
         self.player = 0
 
     def __repr__(self):
@@ -73,15 +80,16 @@ cdef class Node:
     # def __reduce__(self):
     #    return rebuild_node, ([n.__reduce__() for n in self._children], self.a, self.cpuct, self._players, self.e, self.q, self.n, self.p, self.player)
 
-    cdef void add_children(self, np.ndarray v, int num_players):
-        self._children.extend([Node(a, num_players) for a, valid in enumerate(v) if valid])
+    cdef void add_children(self, np.ndarray v, int num_players, list turn):
+        int d = len(turn)
+        self._children.extend([Node(Mutation(a,s), num_players) for a, valid in enumerate(v) if valid for s in range(d)])
         # shuffle children
         np.random.shuffle(self._children)
 
     cdef void update_policy(self, float[:] pi):
         cdef Node c
         for c in self._children:
-            c.p = pi[c.a]
+            c.p = pi[c.mutation.a]
 
     cdef float uct(self, float sqrt_parent_n, float fpu_value, float cpuct):
         return (fpu_value if self.n == 0 else self.q) + cpuct * self.p * sqrt_parent_n / (1 + self.n)
@@ -140,7 +148,7 @@ cdef class MCTS:
         self.fpu_reduction = args.fpu_reduction
         self.cpuct = args.cpuct
         self._num_players = args._num_players
-        self._root = Node(-1, self._num_players)
+        self._root = Node(Mutation(-1,-1), self._num_players)
         self._curnode = self._root
         self.state_history = []
         self.policy_history = []
@@ -158,7 +166,7 @@ cdef class MCTS:
                     self._curnode, self._path, self.depth, self.max_depth)
 
     cpdef void reset(self):
-        self._root = Node(-1, self._num_players)
+        self._root = Node(Mutation(-1,-1), self._num_players)
         self._curnode = self._root
         self._path = []
         self.state_history = []
@@ -191,13 +199,13 @@ cdef class MCTS:
             leaf = self.find_leaf(gs)
             self.process_results(leaf, v, p, add_root_noise, add_root_temp)
 
-    cpdef void update_root(self, object gs, int a):
+    cpdef void update_root(self, object gs, Mutation m):
         if not self._root._children:
             self._root.add_children(gs.valid_moves(), self._num_players)
 
         cdef Node c
         for c in self._root._children:
-            if c.a == a:
+            if c.mutation == m:
                 self._root = c
                 return
 
@@ -250,7 +258,7 @@ cdef class MCTS:
 
         return leaf
 
-    cpdef void process_results(self, object gs, float[:] value, float[:] pi, bint add_root_noise, bint add_root_temp):
+    cpdef void process_results(self, object gs, float[:] value, float[:] pi):
         cdef float[:] valids
         cdef Node c
         
@@ -365,3 +373,8 @@ cdef class MCTS:
                     value = c.q
             
         return value
+
+
+
+
+

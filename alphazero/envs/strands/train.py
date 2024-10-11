@@ -10,21 +10,21 @@ from alphazero.utils import dotdict
 
 args = get_args(dotdict({
     'run_name': 'strands_fpu',
-    'self_play_search_strategy': 'BB-MCTS',
-    'baseline_search_strategy': 'BB-MCTS',
+    'self_play_search_strategy': 'BB-MCTS', #VANILLA-MCTS, BB-MCTS
+    'baseline_search_strategy': 'BB-MCTS', #VANILLA-MCTS, BB-MCTS
     'workers': mp.cpu_count(),
     'startIter': 1,
     'numIters': 1000,
     'numWarmupIters': 1,
-    'process_batch_size': 64,
+    'process_batch_size': 16,
     'train_batch_size': 1024,
     # should preferably be a multiple of process_batch_size and workers
     'gamesPerIteration': 10_000,
     'symmetricSamples': True,
     'skipSelfPlayIters': None,
     'selfPlayModelIter': None,
-    'numMCTSSims': 500,
-    'numFastSims': 1000,
+    'numMCTSSims': 200,
+    'numFastSims': 200,
     'probFastSim': 0.,
     'compareWithBaseline': True,
     'arenaCompareBaseline': 128,
