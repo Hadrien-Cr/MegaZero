@@ -11,16 +11,17 @@ from alphazero.utils import dotdict
 
 args = get_args(dotdict({
     'run_name': 'connect4d_fpu',
-    'macro_act': True,
+    'self_play_search_strategy': 'VANILLA-MCTS', #VANILLA-MCTS, BB-MCTS
+    'baseline_search_strategy': 'VANILLA-MCTS', #VANILLA-MCTS, BB-MCTS
     'baselineTester': OneStepLookaheadConnect4dPlayer,
     'workers': mp.cpu_count(),
     'startIter': 1,
     'numIters': 1000,
     'numWarmupIters': 1,
-    'process_batch_size': 64,
+    'process_batch_size': 128,
     'train_batch_size': 1024,
     # should preferably be a multiple of process_batch_size and workers
-    'gamesPerIteration': 64*mp.cpu_count(),
+    'gamesPerIteration': 128*mp.cpu_count(),
     'symmetricSamples': True,
     'skipSelfPlayIters': None,
     'selfPlayModelIter': None,
@@ -28,11 +29,12 @@ args = get_args(dotdict({
     'numFastSims': 100,
     'probFastSim': 0.,
     'compareWithBaseline': True,
-    'arenaCompareBaseline': 128,
-    'arenaCompare': 128,
-    'arena_batch_size': 128,
+    'arenaCompareBaseline': 16*(mp.cpu_count() -1),
+    'arenaCompare': 16*(mp.cpu_count() -1),
+    'arena_batch_size': 16,
     'arenaTemp': 1,
-    'arenaMCTS': True,
+    'arenaMCTS': False,
+    'arenaBatched': True,
     'baselineCompareFreq': 1,
     'compareWithPast': True,
     'pastCompareFreq': 1,

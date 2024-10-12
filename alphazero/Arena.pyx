@@ -115,7 +115,8 @@ class Arena:
 
     def __check_players_valid(self):
         if self.use_batched_mcts and not all(p.supports_process() for p in self.players):
-            raise ValueError('Batched MCTS is not supported for players that do not support batch processing.')
+            print('Batched MCTS is not supported for some players. Turning off batched MCTS.')
+            self.use_batched_mcts = False
 
     def __reset_stats(self):
         self.draws = 0
@@ -153,16 +154,16 @@ class Arena:
         [p.reset() for p in self.players]
         self.game_state = self.game_cls()
         player_to_index = _player_to_index or list(range(self.game_state.num_players()))
-
+        
         while not self.stop_event.is_set():
             while self.pause_event.is_set():
                 time.sleep(.1)
-            macro_action = self.players[player_to_index[self.game_state.player]](self.game_state)
-            if self.stop_event.is_set() or not isinstance(macro_action, list):
+            current_player = self.game_state.player
+            turn = self.players[player_to_index[self.game_state.player]](self.game_state.clone())
+            if self.stop_event.is_set() or not isinstance(turn, list):
                 break
-                
-            for action in macro_action:
-                [p.update(self.game_state, action) for p in self.players]
+            
+            for action in turn:
                 self.game_state.play_action(action)
 
             winstate = self.game_state.win_state()

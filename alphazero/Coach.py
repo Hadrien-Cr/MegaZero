@@ -65,7 +65,7 @@ DEFAULT_ARGS = dotdict({
     'temp_scaling_fn': default_temp_scaling,
     'root_policy_temp': 1.1,
     'root_noise_frac': 0.1,
-    'add_root_noise': True,
+    'add_root_noise': False,
     'add_root_temp': True,
     'compareWithBaseline': True,
     'baselineTester': RawMCTSPlayer,
@@ -79,7 +79,7 @@ DEFAULT_ARGS = dotdict({
     'pastCompareFreq': 1,
     'model_gating': True,
     'max_gating_iters': None,
-    'min_next_model_winrate': 0.52,
+    'min_next_model_winrate': 0.5,
     'use_draws_for_winrate': True,
     'load_model': True,
     'cpuct': 1.25,
@@ -90,7 +90,7 @@ DEFAULT_ARGS = dotdict({
     'scheduler': torch.optim.lr_scheduler.MultiStepLR,
     'scheduler_args': dotdict({
         'milestones': [75, 125],
-        'gamma': 0.1
+        'gamma': 0.1,
 
         # 'min_lr': 1e-4,
         # 'patience': 3,
@@ -229,7 +229,7 @@ class Coach:
         print('------------------')
         print('Because of batching, it can take a long time before any games finish.')
         print('------------------')
-        print("Using search strategy",  self.args.self_play_search_strategy) 
+        print("Using search strategy",  self.args.self_play_search_strategy, "and n_sims =", self.args.numMCTSSims) 
         try:
 
             while self.model_iter <= self.args.numIters:

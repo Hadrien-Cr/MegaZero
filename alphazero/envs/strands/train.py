@@ -4,34 +4,38 @@ from torch import multiprocessing as mp
 
 from alphazero.Coach import Coach, get_args
 from alphazero.NNetWrapper import NNetWrapper as nn
-from alphazero.envs.strands.strands import Game
-from alphazero.GenericPlayers import RawMCTSPlayer
+from alphazero.envs.strands.strands import Game, rules_strands
+from alphazero.envs.strands.heuristic import StrandsHeursiticMCTS,StrandsHeursiticOSLA
 from alphazero.utils import dotdict
 
 args = get_args(dotdict({
     'run_name': 'strands_fpu',
-    'self_play_search_strategy': 'BB-MCTS', #VANILLA-MCTS, BB-MCTS
-    'baseline_search_strategy': 'BB-MCTS', #VANILLA-MCTS, BB-MCTS
-    'workers': mp.cpu_count(),
+    'self_play_search_strategy': 'VANILLA-MCTS', #VANILLA-MCTS, BB-MCTS
+    'baseline_search_strategy': 'VANILLA-MCTS', #VANILLA-MCTS, BB-MCTS
+    'baselineTester': StrandsHeursiticOSLA,
+    'workers': mp.cpu_count()-1,
+    'symmetricSamples': True,
     'startIter': 1,
     'numIters': 1000,
     'numWarmupIters': 1,
-    'process_batch_size': 16,
+    'process_batch_size': 128,
     'train_batch_size': 1024,
     # should preferably be a multiple of process_batch_size and workers
-    'gamesPerIteration': 10_000,
+    'gamesPerIteration': 10*128*(mp.cpu_count() -1),
     'symmetricSamples': True,
     'skipSelfPlayIters': None,
     'selfPlayModelIter': None,
-    'numMCTSSims': 200,
-    'numFastSims': 200,
+    'numMCTSSims': 100,
+    'numFastSims': 100,
+    'numWarmupSims': 100,
     'probFastSim': 0.,
     'compareWithBaseline': True,
-    'arenaCompareBaseline': 128,
-    'arenaCompare': 128,
-    'arena_batch_size': 128,
+    'arenaCompareBaseline': 16*(mp.cpu_count() -1),
+    'arenaCompare': 16*(mp.cpu_count() -1),
+    'arena_batch_size': 16,
     'arenaTemp': 1,
-    'arenaMCTS': True,
+    'arenaMCTS': False,
+    'arenaBatched': True,
     'baselineCompareFreq': 1,
     'compareWithPast': True,
     'pastCompareFreq': 1,
@@ -41,7 +45,7 @@ args = get_args(dotdict({
 }),
     model_gating=True,
     max_gating_iters=None,
-    max_moves=42,
+    max_moves=rules_strands['MAX_TURNS'],
 
     lr=0.01,
     num_channels=128,

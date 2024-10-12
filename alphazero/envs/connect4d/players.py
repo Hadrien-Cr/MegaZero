@@ -35,18 +35,20 @@ class OneStepLookaheadConnect4dPlayer(BasePlayer):
 
     def reset(self):
         self.mcts = MCTS(self.args)
-
-    def play(self, state) -> int:
-        self.mcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
-        self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
-        policy = self.mcts.probs(state, self.temp)
-
     def play(self, state: GameState) -> int:
+        current_player = state._player
+        turn = []
+        while state._player == current_player and not state.win_state().any():
+            action = self.play_atomic_action(state)
+            state.play_action(action)
+            turn.append(action)
+        return turn
+    def play_atomic_action(self, state: GameState) -> int:
         valid_moves = state.valid_moves()
         win_move_set = set()
         fallback_move_set = set()
         stop_loss_move_set = set()
-
+        
         for move, valid in enumerate(valid_moves):
             if not valid: continue
 
@@ -61,17 +63,17 @@ class OneStepLookaheadConnect4dPlayer(BasePlayer):
                 fallback_move_set.add(move)
 
         if len(win_move_set) > 0:
-            ret_move = np.random.choice(list(win_move_set))
+            ret_move = np.random.choice(list(win_move_set)).item()
             if self.verbose:
                 print('Playing winning action %s from %s' %
                       (ret_move, win_move_set))
         elif len(stop_loss_move_set) > 0:
-            ret_move = np.random.choice(list(stop_loss_move_set))
+            ret_move = np.random.choice(list(stop_loss_move_set)).item()
             if self.verbose:
                 print('Playing loss stopping action %s from %s' %
                       (ret_move, stop_loss_move_set))
         elif len(fallback_move_set) > 0:
-            ret_move = np.random.choice(list(fallback_move_set))
+            ret_move = np.random.choice(list(fallback_move_set)).item()
             if self.verbose:
                 print('Playing random action %s from %s' %
                       (ret_move, fallback_move_set))

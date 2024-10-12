@@ -3,10 +3,11 @@ from alphazero.Game import GameState
 import numpy as np
 from scipy import signal
 from alphazero.NNetWrapper import BaseWrapper
-
+from alphazero.GenericPlayers import MCTSPlayer, NNPlayer
+import torch
 class StrandsHeuristics(BaseWrapper):
-    def __init__(self, game_cls, args):
-        super().__init__(game_cls, args)
+    def __init__(self, game_cls, *args):
+        super().__init__(game_cls, *args)
 
     def predict(self, obs: np.ndarray):
         state = self.game_cls()
@@ -17,7 +18,7 @@ class StrandsHeuristics(BaseWrapper):
         advantage = areas_black[0] - areas_white[0]
         value_black = (areas_black[0] - areas_white[0])/(1+np.sum(areas_empty))
         value_white = (areas_white[0] - areas_black[0])/(1+np.sum(areas_empty))
-        values = np.array([value_black, value_white], dtype=np.float32)
+        values = np.array([value_black, value_white, 0], dtype=np.float32)
         
 
         # Policy estimate
@@ -43,4 +44,21 @@ class StrandsHeuristics(BaseWrapper):
         pass
     def train(self, *args, **kwargs):
         pass
+    def process(self, batch: torch.Tensor):
+        p = torch.zeros(batch.shape[0], self.game_cls.action_size()).to(batch.device)
+        v = torch.zeros(batch.shape[0], 3).to(batch.device)
+        for i in range(batch.shape[0]):
+            p_i, v_i = self.predict(batch[i])
+            p[i] = torch.Tensor(p_i)
+            v[i] = torch.Tensor(v_i)
+        return (p,v)
     
+class StrandsHeursiticMCTS(MCTSPlayer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(None, *args, **kwargs)
+        self.nn = StrandsHeuristics(self.game_cls, args)
+    
+class StrandsHeursiticOSLA(NNPlayer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(None, *args, **kwargs)
+        self.nn = StrandsHeuristics(self.game_cls, args)

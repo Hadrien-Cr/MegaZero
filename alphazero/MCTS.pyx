@@ -128,6 +128,7 @@ cdef class MCTS:
     cdef public list _path
     cdef public list state_history
     cdef public list policy_history
+    cdef public list action_history
     cdef public bint turn_completed
     cdef public int depth
     cdef public int max_depth
@@ -144,6 +145,7 @@ cdef class MCTS:
         self._curnode = self._root
         self.state_history = []
         self.policy_history = []
+        self.action_history = []
         self.turn_completed = False
         self._path = []
         self.depth = 0
@@ -163,6 +165,7 @@ cdef class MCTS:
         self._path = []
         self.state_history = []
         self.policy_history = []
+        self.action_history = []
         self.turn_completed = False
         self.depth = 0
         self.max_depth = 0
@@ -201,26 +204,28 @@ cdef class MCTS:
                 self._root = c
                 return
 
-        raise ValueError(f'Invalid action encountered while updating root: {c.a}')
+        raise ValueError(f'Invalid action encountered while updating root: {a}')
     
     cpdef void update_turn(self, object gs, float temp):
         policy = self.probs(gs, temp)
         action = np.random.choice(len(policy), p=policy)        
+        assert gs.valid_moves()[action]
+        
         clone_state = gs.clone()
-        gs.play_action(action)
-
-        if clone_state._player != gs.player or gs.win_state().any():
-            self.turn_completed = True
-
         self.update_root(gs, action)
         self.state_history.append(gs.clone())
         self.policy_history.append(policy)
+        self.action_history.append(action)
+
+        gs.play_action(action)
+        if clone_state._player != gs.player or gs.win_state().any():
+            self.turn_completed = True
 
 
     cpdef void _add_root_noise(self):
         cdef int num_valid_moves = len(self._root._children)
         cdef float[:] noise = np.array(np.random.dirichlet(
-            [NOISE_ALPHA_RATIO / (num_valid_moves+1)] * num_valid_moves
+            [NOISE_ALPHA_RATIO / num_valid_moves] * num_valid_moves
         ), dtype=np.float32)
         cdef Node c
         cdef float n
@@ -338,16 +343,23 @@ cdef class MCTS:
             probs = np.zeros_like(counts)
             probs[best_action] = 1
             return probs
+        
+        if np.sum(counts) == 0:
+            probs = np.asarray(gs.valid_moves(), dtype=np.float32)
+            probs /= np.sum(probs)
+            return probs
 
         try:
             probs = (counts / np.sum(counts)) ** (1.0 / temp)
             probs /= np.sum(probs)
             return probs
+
         except OverflowError:
             best_action = np.argmax(counts)
             probs = np.zeros_like(counts)
             probs[best_action] = 1
             return probs
+        
 
     cpdef float value(self, bint average=False):
         """Get the value of the current root node in the range [0, 1]

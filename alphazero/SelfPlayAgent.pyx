@@ -85,7 +85,7 @@ class SelfPlayAgent(mp.Process):
                 sims = self.args.numFastSims if self.fast else self.args.numMCTSSims \
                     if not self._is_warmup else self.args.numWarmupSims
                 
-                '''
+                """
                     for _ in range(sims):
                         if self.stop_event.is_set(): break
                         self.generateBatch()
@@ -93,7 +93,8 @@ class SelfPlayAgent(mp.Process):
                         self.processBatch()
                     if self.stop_event.is_set(): break
                     self.playMoves()  
-                '''
+                """
+                
                 # VANILLA-MCTS
                 if self.args.self_play_search_strategy == "VANILLA-MCTS":
                     for _ in range(sims):
@@ -104,8 +105,8 @@ class SelfPlayAgent(mp.Process):
                     if self.stop_event.is_set(): break
                     self.updateTurn(mode = "complete", 
                                     transition_mode = "step") 
-                    self.LogTurn()
-                    if not self.fast and not self._is_arena: self.processGameEnded()
+                    self.LogTurnToHistory()
+                    self.processGameEnded()
 
                 # BB-MCTS
                 elif self.args.self_play_search_strategy == "BB-MCTS":
@@ -118,7 +119,7 @@ class SelfPlayAgent(mp.Process):
                     self.updateTurn(mode = "atomic", 
                                     transition_mode = "step") # extend the turn
                     self.LogTurnToHistory()
-                    if not self.fast and not self._is_arena: self.processGameEnded()
+                    self.processGameEnded()
 
                 # EMCTS
                 elif self.args.self_play_search_strategy == "EMCTS":
@@ -132,7 +133,7 @@ class SelfPlayAgent(mp.Process):
                                     transition_mode = "mutation") # Perform all the mutations
                     self.LogTurnToHistory()
                     self.playTurns() # if all the mutations ar econsumed then play full turn 
-                    if not self.fast and not self._is_arena: self.processGameEnded()
+                    self.processGameEnded()
 
                 # BB-EMCTS
                 elif self.args.self_play_search_strategy == "BB-EMCTS":
@@ -146,7 +147,7 @@ class SelfPlayAgent(mp.Process):
                                     transition_mode = "mutation") # mutate the turn once
                     self.LogTurnToHistory()
                     self.playTurns() # if all the mutations ar econsumed then play full turn 
-                    if not self.fast and not self._is_arena: self.processGameEnded()
+                    self.processGameEnded()
 
             with self.complete_count.get_lock():
                 self.complete_count.value += 1
@@ -212,7 +213,7 @@ class SelfPlayAgent(mp.Process):
                     ):
 
         # BB-MCTS
-        if "mode" == "atomic" and "transition_mode" == "step":
+        if mode == "atomic" and transition_mode == "step":
             for i in range(self.batch_size):
                 
                 self._check_pause()
@@ -223,19 +224,18 @@ class SelfPlayAgent(mp.Process):
                 self._mcts(i).update_turn(self.games[i], self.temps[i])
 
         # VANILLA-MCTS 
-        elif "mode" == "complete" and "transition_mode" == "step":
+        elif mode == "complete" and transition_mode == "step":
             for i in range(self.batch_size):
-
                 self._check_pause()
                 self.temps[i] = self.args.temp_scaling_fn(
                     self.temps[i], self.games[i].turns, self.game_cls.max_turns()
                 ) if not self._is_arena else self.args.arenaTemp
 
-                while not self._mcts(i).turn_completed():
+                while not self._mcts(i).turn_completed:
                     self._mcts(i).update_turn(self.games[i], self.temps[i])
 
         # EMCTS
-        elif "mode" == "complete" and "transition_mode" == "step":          
+        elif mode == "complete" and transition_mode == "mutate":          
             for i in range(self.batch_size):
 
                 self._check_pause()
@@ -247,7 +247,7 @@ class SelfPlayAgent(mp.Process):
                     self.emcts(i).mutate_turn(self.games[i], self.temps[i])
 
         # BB- EMCTS
-        elif "mode" == "atomic" and "transition_mode" == "step":          
+        elif mode == "complete" and transition_mode == "mutate":           
             for i in range(self.batch_size):
                 if self.emcts(i).bb_phase == 0:
                         self.emcts(i).reset()
@@ -264,13 +264,13 @@ class SelfPlayAgent(mp.Process):
     def LogTurnToHistory(self):
         for i in range(self.batch_size):
             if self._mcts(i).turn_completed:
-                for j in len(self._mcts(i).state_history):
-                    state = self._mcts(i).state_history[j]
-                    pi = self._mcts(i).policy_history[j]
+                for t in range(len(self._mcts(i).state_history)):
+                    state = self._mcts(i).state_history[t]
+                    pi = self._mcts(i).policy_history[t]
                     self.histories[i].append((state, pi))
                 self._mcts(i).reset()
-                self.emcts(i).reset()
-                self.emcts(i).init_turn(self.games[i], self.temps[i])
+                # self.emcts(i).reset()
+                # self.emcts(i).init_turn(self.games[i], self.temps[i])
                 
 
     def processGameEnded(self):
@@ -304,7 +304,7 @@ class SelfPlayAgent(mp.Process):
                 else:
                     lock.release()
 
-    '''
+    """
     def playMoves(self):
         for i in range(self.batch_size):
             self._check_pause()
@@ -377,4 +377,4 @@ class SelfPlayAgent(mp.Process):
                     self.mcts[i] = self._get_mcts()
                 else:
                     lock.release()
-    '''
+    """

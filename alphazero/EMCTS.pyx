@@ -52,9 +52,12 @@ cdef class Mutation:
     def __eq__(Mutation other):
         self.step == other.step
         self.a = other.a
+
 # @cython.auto_pickle(True)
-cdef class Node:
+cdef class ENode:
     cdef public list _children
+    cdef public list turn
+    cdef public bint turn_completed
     cdef public int a
     cdef public np.ndarray e
     cdef public float q
@@ -124,7 +127,7 @@ def rebuild_mcts(num_players, cpuct, root, curnode, path):
 
 
 # @cython.auto_pickle(True)
-cdef class MCTS:
+cdef class EMCTS:
     cdef public float root_noise_frac
     cdef public float root_temp
     cdef public float min_discount
@@ -136,6 +139,7 @@ cdef class MCTS:
     cdef public list _path
     cdef public list state_history
     cdef public list policy_history
+    cdef public list action_history
     cdef public bint turn_completed
     cdef public int depth
     cdef public int max_depth
@@ -152,6 +156,7 @@ cdef class MCTS:
         self._curnode = self._root
         self.state_history = []
         self.policy_history = []
+        self.action_history = []
         self.turn_completed = False
         self._path = []
         self.depth = 0

@@ -71,6 +71,7 @@ class NNPlayer(BasePlayer):
         return True
 
     def play(self, state) -> int:
+        turn = []
         current_player = state._player
         while state._player == current_player and not state.win_state().any():
             policy, _ = self.nn.predict(state.observation())
@@ -85,11 +86,13 @@ class NNPlayer(BasePlayer):
                 probs = [x ** (1. / self.temp) for x in options]
                 probs /= np.sum(probs)
 
-            choice = np.random.choice(
+            a = np.random.choice(
                 np.arange(state.action_size()), p=probs
             ).item()
 
-            state.play_action(choice)
+            state.play_action(a)
+            turn.append(a)
+        return turn
 
     def process(self, *args, **kwargs):
         return self.nn.process(*args, **kwargs)
@@ -143,7 +146,7 @@ class MCTSPlayer(BasePlayer):
             while not self.mcts.turn_completed:
                 self.mcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
                 self.mcts.update_turn(state, self.temp)
-
+        return self.mcts.action_history
     def process(self, *args, **kwargs):
         return self.nn.process(*args, **kwargs)
 
@@ -178,7 +181,8 @@ class RawMCTSPlayer(MCTSPlayer):
             while not self.mcts.turn_completed:
                 self.mcts.raw_search(state, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
                 self.mcts.update_turn(state, self.temp)
-
+        return self.mcts.action_history
+    
     def process(self, batch: torch.Tensor):
         return torch.full((batch.shape[0], self._POLICY_SIZE), self._POLICY_FILL_VALUE).to(batch.device), \
                torch.zeros(batch.shape[0], self._VALUE_SIZE).to(batch.device)

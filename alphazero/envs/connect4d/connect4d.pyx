@@ -36,13 +36,12 @@ class Game(GameState):
         return (self._player == other._player 
                 and self._turns == other._turns 
                 and self.micro_step == other.micro_step 
-                and np.array_equal(self._board.pieces,other._board.pieces))
+                and np.array_equal(self._board.pieces, other._board.pieces))
 
 
     def clone(self) -> 'Game':
         game = Game()
         game._board.pieces = np.copy(np.asarray(self._board.pieces))
-        
         game._player = self._player
         game._turns = self._turns
         game.micro_step = self.micro_step

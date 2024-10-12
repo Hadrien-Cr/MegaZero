@@ -6,48 +6,21 @@ from typing import List, Tuple, Any
 
 from alphazero.Game import GameState
 from alphazero.envs.strands.StrandsLogic import Board
-
+from alphazero.envs.strands.rules_set import rules_strands4, rules_strands5, rules_strands6
 import numpy as np
 
-STRANDS_MODE = 'STRANDS_6'
+STRANDS_MODE = 'STRANDS_4'
 
-if STRANDS_MODE == 'STRANDS_6':
-    DEFAULT_WIDTH, DEFAULT_HEIGHT = 11, 11
-    MAX_TURNS = 34
-    AVG_ATOMIC_ACTIONS = 91 / MAX_TURNS
-    NUM_PLAYERS = 2
-    MULTI_PLANE_OBSERVATION, NUM_CHANNELS = True, 9
-    DEFAULT_HEXES_TO_LABELS = np.array([[0, 0, 0, 0, 0, 6, 5, 5, 5, 5, 6],
-                                        [0, 0, 0, 0, 5, 3, 3, 3, 3, 3, 5],
-                                        [0, 0, 0, 5, 3, 2, 2, 2, 2, 3, 5],
-                                        [0, 0, 5, 3, 2, 2, 2, 2, 2, 3, 5],
-                                        [0, 5, 3, 2, 2, 2, 2, 2, 2, 3, 5],
-                                        [6, 3, 2, 2, 2, 1, 2, 2, 2, 3, 6],
-                                        [5, 3, 2, 2, 2, 2, 2, 2, 3, 5, 0],
-                                        [5, 3, 2, 2, 2, 2, 2, 3, 5, 0, 0],
-                                        [5, 3, 2, 2, 2, 2, 3, 5, 0, 0, 0],
-                                        [5, 3, 3, 3, 3, 3, 5, 0, 0, 0, 0],
-                                        [6, 5, 5, 5, 5, 6, 0, 0, 0, 0, 0]],
-                                        dtype = np.intc)
-    DEFAULT_HEXES_AVAILABLE = np.array([0, 1, 36, 24, 0, 24, 6],dtype = np.intc)
+if STRANDS_MODE == 'STRANDS_4':
+    rules_strands = rules_strands4
 
 elif STRANDS_MODE == 'STRANDS_5':
-    DEFAULT_WIDTH, DEFAULT_HEIGHT = 9, 9
-    MAX_TURNS = 23
-    NUM_PLAYERS = 2
-    AVG_ATOMIC_ACTIONS = 61 / MAX_TURNS
-    MULTI_PLANE_OBSERVATION, NUM_CHANNELS = True, 9
-    DEFAULT_HEXES_TO_LABELS = np.array([[0, 0, 0, 0, 6, 4, 4, 4, 6],
-                                        [0, 0, 0, 4, 3, 3, 3, 3, 4],
-                                        [0, 0, 4, 3, 2, 2, 2, 3, 4],
-                                        [0, 4, 3, 2, 2, 2, 2, 3, 4],
-                                        [6, 3, 2, 2, 1, 2, 2, 3, 6],
-                                        [4, 3, 2, 2, 2, 2, 3, 4, 0],
-                                        [4, 3, 2, 2, 2, 3, 4, 0, 0],
-                                        [4, 3, 3, 3, 3, 4, 0, 0, 0],
-                                        [6, 4, 4, 4, 6, 0, 0, 0, 0]],
-                                        dtype = np.intc)
-    DEFAULT_HEXES_AVAILABLE = np.array([0, 1, 18, 18, 18, 0, 6], dtype = np.intc)
+    rules_strands = rules_strands5
+
+if STRANDS_MODE == 'STRANDS_6':
+    rules_strands = rules_strands6
+
+
 
 class Game(GameState):
     """
@@ -66,9 +39,9 @@ class Game(GameState):
 
     @staticmethod
     def _get_board():
-        return Board(width=DEFAULT_WIDTH, 
-                    default_hexes_to_labels = np.copy(DEFAULT_HEXES_TO_LABELS),
-                    default_hexes_available = np.copy(DEFAULT_HEXES_AVAILABLE))
+        return Board(width=rules_strands['DEFAULT_WIDTH'], 
+                    default_hexes_to_labels = np.copy(rules_strands['DEFAULT_HEXES_TO_LABELS']),
+                    default_hexes_available = np.copy(rules_strands['DEFAULT_HEXES_AVAILABLE']))
 
     def __hash__(self):
         return hash(self._board.hexes.tobytes() + bytes([self._turns]) + bytes([self._player]))
@@ -97,11 +70,11 @@ class Game(GameState):
 
     @staticmethod
     def avg_atomic_actions():
-        return AVG_ATOMIC_ACTIONS
+        return rules_strands['AVG_ATOMIC_ACTIONS']
 
     @staticmethod
     def max_turns() -> int:
-        return MAX_TURNS
+        return rules_strands['MAX_TURNS']
 
     @staticmethod
     def has_draw() -> bool:
@@ -109,15 +82,17 @@ class Game(GameState):
 
     @staticmethod
     def num_players() -> int:
-        return NUM_PLAYERS
+        return rules_strands['NUM_PLAYERS']
 
     @staticmethod
     def action_size() -> int:
-        return DEFAULT_WIDTH ** 2
+        return rules_strands['DEFAULT_WIDTH']**2
 
     @staticmethod
     def observation_size() -> tuple[int, int, int]:
-        return NUM_CHANNELS, DEFAULT_HEIGHT, DEFAULT_WIDTH
+        return 9, rules_strands['DEFAULT_HEIGHT'], rules_strands['DEFAULT_WIDTH']
+
+
 
     def valid_moves(self):
         valid = np.zeros((self.action_size(),), dtype=np.intc)
@@ -143,26 +118,24 @@ class Game(GameState):
             self._update_turn()
 
     def observation(self):
-        if MULTI_PLANE_OBSERVATION:
-            hexes = np.asarray(self._board.hexes)
-            player1 = np.where(hexes == 1, 1, 0)
-            player2 = np.where(hexes == -1, 1, 0)
-            empty = np.where(hexes == 0, 1, 0)
+        hexes = np.asarray(self._board.hexes)
+        player1 = np.where(hexes == 1, 1, 0)
+        player2 = np.where(hexes == -1, 1, 0)
+        empty = np.where(hexes == 0, 1, 0)
 
-            colour = np.full_like(hexes, self.player)
-            digit_chosen = np.full_like(hexes, self._board.digit_chosen, dtype=np.intc)
-            rest = np.full_like(hexes, self._board.rest, dtype=np.intc)
-            turn = np.full_like(hexes, self._turns / MAX_TURNS, dtype=np.intc)
-            micro_step = np.full_like(hexes, self.micro_step, dtype=np.intc)
+        colour = np.full_like(hexes, self.player)
+        digit_chosen = np.full_like(hexes, self._board.digit_chosen, dtype=np.intc)
+        rest = np.full_like(hexes, self._board.rest, dtype=np.intc)
+        turn = np.full_like(hexes, self._turns / rules_strands['MAX_TURNS'], dtype=np.intc)
+        micro_step = np.full_like(hexes, self.micro_step, dtype=np.intc)
 
-            return np.array([hexes, player1, player2, empty, 
-                        digit_chosen, rest, colour, turn, micro_step], dtype=np.intc)
+        return np.array([hexes, player1, player2, empty, 
+                    digit_chosen, rest, colour, turn, micro_step], dtype=np.intc)
 
-        else:
-            return np.expand_dims(np.asarray(self._board.hexes), axis=0)
+
 
     def win_state(self) -> np.ndarray:
-        if self._turns < MAX_TURNS:
+        if self._turns < rules_strands['MAX_TURNS']:
             return np.array([False] * 3, dtype=np.uint8)
 
         areas_black, areas_white, areas_empty = self._board.compute_areas()
@@ -181,12 +154,12 @@ class Game(GameState):
         return np.array([False, False, True], dtype=np.uint8)
 
     def XYIndexingToHexIndexing(self, x: int, y: int) -> int:
-        return x * DEFAULT_WIDTH + y
+        return x * rules_strands['DEFAULT_WIDTH'] + y
     
     def HexIndexingToXYIndexing(self, hex: int):
-        return hex//DEFAULT_WIDTH, hex%DEFAULT_WIDTH
+        return hex//rules_strands['DEFAULT_WIDTH'], hex%rules_strands['DEFAULT_WIDTH']
 
-    def symmetries(self, pi) -> List[Tuple[Any, int]]:
+    def symmetries(self, pi) -> List[Tuple[Any, Any]]:
         
         # We use 4 out of the 6 axes of symmetries for simplicty
         data = [(self.clone(), pi)]
@@ -194,21 +167,21 @@ class Game(GameState):
         # (top left / bot right) diagonal symmetry
         new_state = self.clone()
         new_state._board.hexes = np.transpose(self._board.hexes)
-        new_pi = np.transpose(np.reshape(pi,(DEFAULT_WIDTH,DEFAULT_WIDTH))).flatten()
+        new_pi = np.transpose(np.reshape(pi,(rules_strands['DEFAULT_WIDTH'],rules_strands['DEFAULT_WIDTH']))).flatten()
         data.append((new_state, new_pi))
         
         # (top right / bot left) diagonal symmetry
         new_state = self.clone()
         new_state._board.hexes = np.fliplr(np.transpose(np.fliplr(self._board.hexes)))
         new_pi = np.copy(pi)
-        new_pi = np.fliplr(np.transpose(np.fliplr(np.reshape(pi, (DEFAULT_WIDTH, DEFAULT_WIDTH))))).flatten()
+        new_pi = np.fliplr(np.transpose(np.fliplr(np.reshape(pi, (rules_strands['DEFAULT_WIDTH'], rules_strands['DEFAULT_WIDTH']))))).flatten()
         data.append((new_state, new_pi))
         
         # center rotation
         new_state = self.clone()
         new_state._board.hexes = np.transpose(np.fliplr(np.transpose(np.fliplr(self._board.hexes))))
         new_pi = np.copy(pi)
-        new_pi = np.transpose(np.fliplr(np.transpose(np.fliplr(np.reshape(pi, (DEFAULT_WIDTH, DEFAULT_WIDTH)))))).flatten()
+        new_pi = np.transpose(np.fliplr(np.transpose(np.fliplr(np.reshape(pi, (rules_strands['DEFAULT_WIDTH'], rules_strands['DEFAULT_WIDTH'])))))).flatten()
         data.append((new_state, new_pi))
 
         return data
