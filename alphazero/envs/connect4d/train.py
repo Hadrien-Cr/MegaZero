@@ -48,7 +48,7 @@ args = get_args(dotdict({
 
     lr=0.01,
     num_channels=128,
-    depth=8,
+    depth=4,
     value_head_channels=32,
     policy_head_channels=32,
     value_dense_layers=[1024, 256],

@@ -24,7 +24,7 @@ import os
 
 DEFAULT_ARGS = dotdict({
     'run_name': 'boardgame',
-    'macro_act': True,
+    'emcts_horizon': 10,
     'cuda': torch.cuda.is_available(),
     'workers': mp.cpu_count(),
     'startIter': 0,

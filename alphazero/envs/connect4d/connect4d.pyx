@@ -2,13 +2,13 @@
 # cython: auto_pickle=True
 # cython: profile=True
 from typing import List, Tuple, Any
-
+from alphazero.EMCTS import Mutation
 from alphazero.Game import GameState
 from alphazero.envs.connect4d.Connect4dLogic import Board
 
 import numpy as np
 
-NUM_BOARDS = 7 # Number of boards in the stacked environment, also equals to d
+NUM_BOARDS = 6 # Number of boards in the stacked environment, also equals to d
 DEFAULT_HEIGHT = 6
 DEFAULT_WIDTH = 7
 DEFAULT_WIN_LENGTH = 4
@@ -20,7 +20,7 @@ NUM_CHANNELS = 3 + 3*NUM_BOARDS if MULTI_PLANE_OBSERVATION else NUM_BOARDS
 
 class Game(GameState):
     def __init__(self):
-        super().__init__(self._get_board())
+        super().__init__(self._get_board(), d = NUM_BOARDS)
 
     @staticmethod
     def _get_board():
@@ -85,22 +85,21 @@ class Game(GameState):
             self._update_turn()
 
     def win_state(self) -> np.ndarray:
-        for i in range(NUM_BOARDS):
-            game_over, player = self._board.get_win_state(sub_board=self.micro_step)
+        game_over, player = self._board.get_win_state(sub_board=self.micro_step)
 
-            if game_over and player!= 0:
-                result = [False] * 3
-                index = -1
-                if player == 1:
-                    index = 0
-                elif player == -1:
-                    index = 1
-                result[index] = True
-                return np.array(result, dtype=np.uint8)
-            
-            elif game_over and i == NUM_BOARDS - 1:
-                result = [False, False, True] 
-                return np.array(result, dtype=np.uint8)
+        if game_over and player!= 0:
+            result = [False] * 3
+            index = -1
+            if player == 1:
+                index = 0
+            elif player == -1:
+                index = 1
+            result[index] = True
+            return np.array(result, dtype=np.uint8)
+        
+        elif game_over and self.micro_step == NUM_BOARDS - 1:
+            result = [False, False, True] 
+            return np.array(result, dtype=np.uint8)
 
         return np.array([False] * 3, dtype=np.uint8)
     

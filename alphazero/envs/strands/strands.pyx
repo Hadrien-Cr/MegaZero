@@ -34,7 +34,7 @@ class Game(GameState):
 
     """
     def __init__(self):
-        super().__init__(board=self._get_board())
+        super().__init__(board=self._get_board(), d = 6)
         self.micro_step = 1
 
     @staticmethod
@@ -133,7 +133,6 @@ class Game(GameState):
                     digit_chosen, rest, colour, turn, micro_step], dtype=np.intc)
 
 
-
     def win_state(self) -> np.ndarray:
         if self._turns < rules_strands['MAX_TURNS']:
             return np.array([False] * 3, dtype=np.uint8)
@@ -186,3 +185,23 @@ class Game(GameState):
 
         return data
 
+    def valid_mutations(self, sequence):
+        gs = self.clone()
+        horizon = len(sequence)
+        valids = np.zeros((horizon, gs.action_size()), dtype = np.float32)
+
+        for tau in range(horizon):
+            hexes = np.asarray(self._board.hexes)
+            valids[tau] = np.where(hexes == 0, 1, 0)
+            a = sequence[tau]
+            valids[tau,a] = False
+            gs.play_action(a)
+        
+        return valids
+
+    def mutate(self, sequence, m: Mutation):
+        if sequence[m.tau] == m.a:
+            return sequence
+        else:
+            sequence[m.tau] = m.a
+            return sequence

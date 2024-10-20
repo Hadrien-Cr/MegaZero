@@ -165,6 +165,8 @@ class Arena:
             
             for action in turn:
                 self.game_state.play_action(action)
+                if self.game_state.win_state().any():
+                    break
 
             winstate = self.game_state.win_state()
 

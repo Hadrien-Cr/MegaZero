@@ -5,12 +5,13 @@ import numpy as np
 
 
 class GameState(ABC):
-    def __init__(self, board):
+    def __init__(self, board, d = 1):
         self._board = board
         self._player = 0
         self._turns = 0
         self.last_action = None
         self.micro_step = 0
+        self.d = d
 
     def __str__(self) -> str:
         return f'Player:\t{self._player}\n{self._board}\n'

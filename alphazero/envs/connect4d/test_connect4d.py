@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 from alphazero.envs.connect4d.connect4d import Game, NUM_BOARDS  
 import dill as pickle
+import time
 '''
 Run this test: 
 python3 -m alphazero.envs.connect4d.test_connect4d
@@ -29,7 +30,7 @@ def test_simple_moves():
         [0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 1, 0, 0],
-        [1, 0, 0, -1, 1, -1, -1]]
+        [1, 0, 0,-1, 1,-1,-1]]
             for _ in range(NUM_BOARDS)])
     assert np.array_equal(game._board.pieces , expected)
 
@@ -77,14 +78,15 @@ def test_game_ended():
     assert np.array_equal(game.win_state(), np.array([False, False, False]))  # Initial state is not a game ended
     
     game = init_board_from_array([
-        [-1, 1, -1, 1, -1, 1,-1],
-        [-1, 1, -1, 1, -1, 1,-1],
-        [1, -1, 1, -1, 1, -1, 1],
-        [1, -1, 1, -1, 1, -1, 1],
-        [-1, 1, -1, 1, -1, 1,-1],
-        [-1, 1, -1, 1, -1, 1,-1]
+        [-1, 1,-1, 1,-1, 1,-1],
+        [-1, 1,-1, 1,-1, 1,-1],
+        [ 1,-1, 1,-1, 1,-1, 1],
+        [ 1,-1, 1,-1, 1,-1, 1],
+        [-1, 1,-1, 1,-1, 1,-1],
+        [-1, 1,-1, 1,-1, 1,-1]
     ])
-    assert np.array_equal(game.win_state(), np.array([False, False, True])) # Player 1 wins with a diagonal
+    game.micro_step = game.d -1
+    assert np.array_equal(game.win_state(), np.array([False, False, True])) # End of game in a draw
     
 # Test 6: Immutable move check
 def test_immutable_move():
@@ -110,25 +112,19 @@ def check_observation():
     game = Game()
     obs = game.observation()
     assert obs.shape == game.observation_size()
-    assert np.array_equal(obs[0,:,:], np.full_like(obs[0,:,:], 0))
-    assert np.array_equal(obs[1,:,:], np.full_like(obs[0,:,:], 0))
-    assert np.array_equal(obs[2,:,:], np.full_like(obs[0,:,:], 0))
-    assert np.array_equal(obs[3,:,:], np.full_like(obs[0,:,:], 0))
-    assert np.array_equal(obs[4,:,:], np.full_like(obs[0,:,:], 1))
-    assert np.array_equal(obs[5,:,:], np.full_like(obs[0,:,:], 0))
-    assert np.array_equal(obs[6,:,:], np.full_like(obs[0,:,:], 0))
-    assert np.array_equal(obs[7,:,:], np.full_like(obs[0,:,:], 0))
-    assert np.array_equal(obs[8,:,:], np.full_like(obs[0,:,:], 0))
+    for i in range(obs.shape[0]):
+        assert np.array_equal(obs[i,:,:], np.full_like(obs[i,:,:], 0))
 
 # Test 9: Pickleability
 def is_pickleable():
     game = Game()
     assert pickle.pickles(game)
+
 # Test 10: Agent
 def test_agent():
     
     from alphazero.envs.connect4d.players import OneStepLookaheadConnect4dPlayer
-    from alphazero.GenericPlayers import NNPlayer,RawMCTSPlayer, RandomPlayer
+    from alphazero.GenericPlayers import NNPlayer,RawMCTSPlayer, RandomPlayer, RawEMCTSPlayer
     from alphazero.envs.strands.train import args
     from alphazero.Arena import Arena
     import alphazero.Coach as c
@@ -136,7 +132,6 @@ def test_agent():
     args =  c.get_args(args)
     args['_num_players'] = 2
     args['numMCTSSims'] = 100
-    args['baseline_search_strategy'] = "VANILLA-MCTS"
     args['arenaCompareBaseline'] = 10
     args['arenaCompare'] = 10
     args['arena_batch_size'] = 1
@@ -146,15 +141,51 @@ def test_agent():
         args['self_play_search_strategy'] = self_play_search_strategy
         agents = [
                     OneStepLookaheadConnect4dPlayer(Game, args),
+                    RawEMCTSPlayer(Game, args),
                     RawMCTSPlayer(Game, args),
                     RandomPlayer(Game),
                 ]
         for _ in range(10):
             shuffle(agents)
             players = [agents[0], agents[1]]
+            print(players[0].__class__.__name__, "vs", players[1].__class__.__name__)
             arena = Arena(players, Game, use_batched_mcts=args.arenaBatched, args=args)
             arena.play_games(args.arenaCompare)
     
+# Test 11: Timing function calls:
+def test_timings():
+    game = Game()
+    time_act, time_valid_moves, time_clone, time_ws = 0, 0, 0, 0
+
+    for _ in range(100_000): 
+        if game.win_state().any():
+            game = Game()
+        else: 
+            valid_actions = game.valid_moves()
+            true_indices = np.where(valid_actions)[0]
+            action = np.random.choice(true_indices).item()
+            t = time.time()
+            game.play_action(action)
+            time_act += time.time() - t
+
+            t = time.time()
+            game.clone()
+            time_act += time.time() - t
+
+            t = time.time()
+            game.valid_moves()
+            time_valid_moves += time.time() - t
+            
+            t = time.time()
+            game.win_state()
+            time_ws += time.time() - t
+
+    print(f"Time to act: {time_act}")
+    print(f"Time to valid moves: {time_valid_moves}")
+    print(f"Time to clone: {time_clone}")
+    print(f"Time to win state: {time_ws}")
+
 
 if __name__ == "__main__":
+    test_agent()
     pytest.main()

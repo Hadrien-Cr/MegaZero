@@ -280,7 +280,7 @@ def is_pickleable():
 def test_agent():
     
     from alphazero.envs.strands.heuristic import StrandsHeuristics, StrandsHeursiticMCTS,StrandsHeursiticOSLA
-    from alphazero.GenericPlayers import NNPlayer,RawMCTSPlayer, RandomPlayer
+    from alphazero.GenericPlayers import NNPlayer, RawMCTSPlayer, RandomPlayer, RawEMCTSPlayer
     from alphazero.envs.strands.train import args
     import alphazero.Coach as c
     from random import shuffle
@@ -299,6 +299,7 @@ def test_agent():
                     StrandsHeursiticMCTS(Game, args),
                     StrandsHeursiticOSLA(Game, args),
                     RawMCTSPlayer(Game, args),
+                    RawEMCTSPlayer(Game, args),
                     RandomPlayer(Game),
                 ]
         for _ in range(10):
