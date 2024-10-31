@@ -100,7 +100,8 @@ cdef class Node:
             if uct > cur_best:
                 cur_best = uct
                 child = c
-
+            elif c.e[self.player]:
+                return c
         return child
 
 
@@ -126,7 +127,6 @@ cdef class MCTS:
     cdef public Node _root
     cdef public Node _curnode
     cdef public list _path
-    cdef public list state_history
     cdef public list policy_history
     cdef public list action_history
     cdef public bint turn_completed
@@ -143,7 +143,6 @@ cdef class MCTS:
         self._num_players = args._num_players
         self._root = Node(-1, self._num_players)
         self._curnode = self._root
-        self.state_history = []
         self.policy_history = []
         self.action_history = []
         self.turn_completed = False
@@ -163,7 +162,6 @@ cdef class MCTS:
         self._root = Node(-1, self._num_players)
         self._curnode = self._root
         self._path = []
-        self.state_history = []
         self.policy_history = []
         self.action_history = []
         self.turn_completed = False
@@ -183,6 +181,8 @@ cdef class MCTS:
             leaf = self.find_leaf(gs)
             p, v = nn(leaf.observation())
             self.process_results(leaf, v, p, add_root_noise, add_root_temp)
+            if self.turn_completed:
+                break
 
     cpdef void raw_search(self, object gs, int sims, bint add_root_noise, bint add_root_temp):
         cdef Py_ssize_t policy_size = gs.action_size()
@@ -192,35 +192,57 @@ cdef class MCTS:
 
         for _ in range(sims):
             leaf = self.find_leaf(gs)
+            if self.turn_completed:
+                break
             self.process_results(leaf, v, p, add_root_noise, add_root_temp)
+    
+    cpdef object find_leaf(self, object gs):
+        self.depth = 0
+        self._curnode = self._root
+        cdef object leaf = gs.clone()
+
+        while self._curnode.n > 0 and (not self._curnode.e.any()):
+            self._path.append(self._curnode)
+            self._curnode = self._curnode.best_child(self.fpu_reduction, self.cpuct)
+            leaf.play_action(self._curnode.a)
+            self.depth += 1
+
+        if self.depth > self.max_depth:
+            self.max_depth = self.depth
+            self._discount_max_depth = self.depth
+        
+        if self._curnode.n == 0:
+            self._curnode.player = leaf.player
+            self._curnode.e = leaf.win_state()
+            self._curnode.add_children(leaf.valid_moves(), self._num_players)
+        
+        if self.depth == 1 and self._curnode.e[self._root.player]: # if a winning move is found, select it and update turn
+            self.policy_history.append(np.array([action == self._curnode.a for action in range(gs.action_size())], dtype = np.float32))
+            self.update_root(gs, self._curnode.a)
+
+        return leaf
 
     cpdef void update_root(self, object gs, int a):
-        if not self._root._children:
-            self._root.add_children(gs.valid_moves(), self._num_players)
-
+        assert gs.valid_moves()[a]
         cdef Node c
         for c in self._root._children:
             if c.a == a:
                 self._root = c
-                return
-
-        raise ValueError(f'Invalid action encountered while updating root: {a}')
+                break
+        self.action_history.append(a)
+        player = gs._player
+        gs.play_action(a)
+        if player != gs.player or gs.win_state().any():
+            self.turn_completed = True
     
     cpdef void update_turn(self, object gs, float temp):
+        if len(self._root._children) == 0:
+            self._root.add_children(gs.valid_moves(), self._num_players)
         policy = self.probs(gs, temp)
-        action = np.random.choice(len(policy), p=policy)        
+        action = np.random.choice(len(policy), p=policy)  
+        self.policy_history.append(policy)      
         assert gs.valid_moves()[action]
-        
-        clone_state = gs.clone()
         self.update_root(gs, action)
-        self.state_history.append(gs.clone())
-        self.policy_history.append(policy)
-        self.action_history.append(action)
-
-        gs.play_action(action)
-        if clone_state._player != gs.player or gs.win_state().any():
-            self.turn_completed = True
-
 
     cpdef void _add_root_noise(self):
         cdef int num_valid_moves = len(self._root._children)
@@ -232,28 +254,6 @@ cdef class MCTS:
 
         for n, c in zip(noise, self._root._children):
             c.p = c.p * (1 - self.root_noise_frac) + self.root_noise_frac * n
-
-    cpdef object find_leaf(self, object gs):
-        self.depth = 0
-        self._curnode = self._root
-        cdef object leaf = gs.clone()
-
-        while self._curnode.n > 0 and not self._curnode.e.any():
-            self._path.append(self._curnode)
-            self._curnode = self._curnode.best_child(self.fpu_reduction, self.cpuct)
-            leaf.play_action(self._curnode.a)
-            self.depth += 1
-
-        if self.depth > self.max_depth:
-            self.max_depth = self.depth
-            self._discount_max_depth = self.depth
-
-        if self._curnode.n == 0:
-            self._curnode.player = leaf.player
-            self._curnode.e = leaf.win_state()
-            self._curnode.add_children(leaf.valid_moves(), self._num_players)
-
-        return leaf
 
     cpdef void process_results(self, object gs, float[:] value, float[:] pi, bint add_root_noise, bint add_root_temp):
         cdef float[:] valids
@@ -338,17 +338,16 @@ cdef class MCTS:
         cdef np.ndarray[dtype=np.float32_t, ndim=1] probs
         cdef Py_ssize_t best_action
 
-        if temp == 0:
-            best_action = np.argmax(counts)
-            probs = np.zeros_like(counts)
-            probs[best_action] = 1
-            return probs
-        
         if np.sum(counts) == 0:
             probs = np.asarray(gs.valid_moves(), dtype=np.float32)
             probs /= np.sum(probs)
             return probs
 
+        if temp == 0:
+            best_action = np.argmax(counts)
+            probs = np.zeros_like(counts)
+            probs[best_action] = 1
+            return probs
         try:
             probs = (counts / np.sum(counts)) ** (1.0 / temp)
             probs /= np.sum(probs)

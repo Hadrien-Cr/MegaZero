@@ -8,7 +8,7 @@ from alphazero.envs.connect4d.Connect4dLogic import Board
 
 import numpy as np
 
-NUM_BOARDS = 6 # Number of boards in the stacked environment, also equals to d
+NUM_BOARDS = 4 # Number of boards in the stacked environment, also equals to d
 DEFAULT_HEIGHT = 6
 DEFAULT_WIDTH = 7
 DEFAULT_WIN_LENGTH = 4
@@ -30,11 +30,12 @@ class Game(GameState):
                               num_boards = NUM_BOARDS)
 
     def __hash__(self) -> int:
-        return hash(self._board.pieces.tobytes() + bytes([self._turns]) + bytes([self._player]))
+        return hash(self._board.pieces.tobytes() + bytes([self._turns, self._player, self.winner]))
 
     def __eq__(self, other: 'Game') -> bool:
         return (self._player == other._player 
                 and self._turns == other._turns 
+                and self._board.winner == other._board.winner
                 and self.micro_step == other.micro_step 
                 and np.array_equal(self._board.pieces, other._board.pieces))
 
@@ -42,6 +43,7 @@ class Game(GameState):
     def clone(self) -> 'Game':
         game = Game()
         game._board.pieces = np.copy(np.asarray(self._board.pieces))
+        game._board.winner = self._board.winner
         game._player = self._player
         game._turns = self._turns
         game.micro_step = self.micro_step
@@ -87,18 +89,16 @@ class Game(GameState):
     def win_state(self) -> np.ndarray:
         game_over, player = self._board.get_win_state(sub_board=self.micro_step)
 
-        if game_over and player!= 0:
+        if game_over:
             result = [False] * 3
             index = -1
             if player == 1:
                 index = 0
             elif player == -1:
                 index = 1
+            elif player == 0:
+                index = 2
             result[index] = True
-            return np.array(result, dtype=np.uint8)
-        
-        elif game_over and self.micro_step == NUM_BOARDS - 1:
-            result = [False, False, True] 
             return np.array(result, dtype=np.uint8)
 
         return np.array([False] * 3, dtype=np.uint8)
@@ -109,7 +109,7 @@ class Game(GameState):
             player1 = np.where(pieces == 1, 1, 0)
             player2 = np.where(pieces == -1, 1, 0)
 
-            colour = np.full_like(pieces[0], self.player)
+            colour = np.full_like(pieces[0], (1, -1)[self.player])
             turn = np.full_like(pieces[0], self._turns / MAX_TURNS, dtype=np.intc)
             micro_step = np.full_like(pieces[0], self.micro_step, dtype=np.intc)
 

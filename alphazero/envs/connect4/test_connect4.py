@@ -63,13 +63,15 @@ def test_symmetries():
 # Test 5: Game end detection
 def test_game_ended():
     game = init_board_from_array([
-        [0, 0, 0, 0, 1, 0, 0],
-        [0, 0, 0, 1, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
         [1, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0]
+        [1, 0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0]
     ])
+    assert np.array_equal(game.win_state(), np.array([False, False, False])) # Player 1 wins with a diagonal
+    game.play_action(0)
     assert np.array_equal(game.win_state(), np.array([True, False, False])) # Player 1 wins with a diagonal
     
     game = init_board_from_moves([])
@@ -84,6 +86,7 @@ def test_immutable_move():
     game.play_action(5)
     assert not game.__eq__(clone_game)
     assert np.array_equal(clone_game._board, game._board.pieces) == False  # Board should have changed
+
 # Test 7: Random Rollout
 def test_rollout():
     game = init_board_from_moves([])

@@ -49,7 +49,7 @@ class RandomPlayer(BasePlayer):
     def play(self, state):
         turn = []
         current_player = state._player
-        while state._player == current_player:
+        while state._player == current_player and not state.win_state().any():
             valids = state.valid_moves()
             valids = valids / np.sum(valids)
             action = np.random.choice(state.action_size(), p=valids)
@@ -62,7 +62,7 @@ class NNPlayer(BasePlayer):
         super().__init__(*args, **kwargs)
         self.nn = nn
         self.temp = self.args.startTemp
-
+        self.mode = "osla"
     @staticmethod
     def supports_process() -> bool:
         return True
@@ -102,10 +102,13 @@ class NNPlayer(BasePlayer):
 ############### MCTSPlayer ####################
 
 class MCTSPlayer(BasePlayer):
-    def __init__(self, nn: NNetWrapper, *args, print_policy=False,
+    def __init__(self, nn: NNetWrapper, *args, strategy = "vanilla", print_policy=False,
                  average_value=False, draw_mcts=False, draw_depth=2, **kwargs):
         super().__init__(*args, **kwargs)
         self.nn = nn
+        self.strategy = strategy
+        self.mode = "mcts"
+        self.__class__.__name__ = f"MCTSPlayer(strategy = {strategy})"
         self.temp = self.args.startTemp
         self.print_policy = print_policy
         self.average_value = average_value
@@ -122,11 +125,11 @@ class MCTSPlayer(BasePlayer):
 
     @staticmethod
     def supports_process() -> bool:
-        return True
+        return False
 
     @staticmethod
     def requires_model() -> bool:
-        return True
+        return False
 
     def update(self, state: GameState, action: int) -> None:
         self.mcts.update_root(state, action)
@@ -137,17 +140,16 @@ class MCTSPlayer(BasePlayer):
     def play(self, state) -> int:
         self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
         
-        if self.args.baseline_search_strategy == "VANILLA-MCTS":
+        if self.strategy == "vanilla":
             self.reset()
             self.mcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
             while not self.mcts.turn_completed:
-                self.mcts.search(state, self.nn, 1, self.args.add_root_noise, self.args.add_root_temp)
                 self.mcts.update_turn(state, self.temp)
 
-        elif self.args.baseline_search_strategy == "BB-MCTS":
+        elif self.strategy == "bridge-burning":
             self.reset()
             while not self.mcts.turn_completed:
-                self.mcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+                self.mcts.search(state, self.nn, self.args.numMCTSSims/state.avg_tomic_actions(), self.args.add_root_noise, self.args.add_root_temp)
                 self.mcts.update_turn(state, self.temp)
         return self.mcts.action_history
     
@@ -160,10 +162,13 @@ class MCTSPlayer(BasePlayer):
 
 
 class EMCTSPlayer(BasePlayer):
-    def __init__(self, nn: NNetWrapper, *args, print_policy=False,
+    def __init__(self, nn: NNetWrapper, *args, strategy = "vanilla", print_policy=False,
                  average_value=False, draw_mcts=False, draw_depth=2, **kwargs):
         super().__init__(*args, **kwargs)
         self.nn = nn
+        self.strategy = strategy
+        self.mode = "emcts"
+        self.__class__.__name__ = f"EMCTSPlayer(strategy = {strategy})"
         self.temp = self.args.startTemp
         self.print_policy = print_policy
         self.average_value = average_value
@@ -188,28 +193,20 @@ class EMCTSPlayer(BasePlayer):
     def play(self, state) -> int:
         self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
 
-        if self.args.baseline_search_strategy == "VANILLA-MCTS":
+        if self.strategy == "vanilla":
             self.reset()
-            self.emcts.search(gs, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
-            current_player = gs._player
+            self.emcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+            for _ in range(self.args.emcts_bb_phases):
+                self.emcts.update_turn(state, self.temp)
 
-            for a in self.emcts.action_history:
-                if current_player != gs.player or gs.win_state().any(): break
-                gs.play_action(a)
-
-        elif self.args.baseline_search_strategy == "BB-MCTS":
-            gs = state.clone()
+        elif self.strategy == "bridge-burning":
             self.reset()
             for _ in range(self.args.emcts_bb_phases):
-                self.emcts.search(gs, self.nn, self.args.numMCTSSims/self.args.emcts_bb_phases, self.args.add_root_noise, self.args.add_root_temp)
-                m = self.emcts._root.best_child(0, 0)
-                self.emcts.update_root(gs, m)
-            current_player = state._player
+                self.emcts.search(state, self.nn, self.args.numMCTSSims/self.args.emcts_bb_phases, self.args.add_root_noise, self.args.add_root_temp)
+                self.emcts.update_turn(state, self.temp)
 
-            for a in self.emcts.action_history:
-                if current_player != gs.player or gs.win_state().any(): break
-                gs.play_action(a)
-
+        assert len(self.emcts.action_history) <= len(self.emcts.policy_history), f"{self.emcts.action_history,self.emcts.policy_history}"
+        self.emcts.policy_history = self.emcts.policy_history[0:len(self.emcts.action_history)]
         return self.emcts.action_history
     
     def process(self, *args, **kwargs):
@@ -219,8 +216,11 @@ class EMCTSPlayer(BasePlayer):
 ############### RawMCTSPlayer ####################
 
 class RawMCTSPlayer(MCTSPlayer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, strategy = "vanilla", *args, **kwargs):
         super().__init__(None, *args, **kwargs)
+        self.strategy = strategy
+        self.mode = "mcts"
+        self.__class__.__name__ = f"RawMCTSPlayer(strategy = {strategy})"
         self._POLICY_SIZE = self.game_cls.action_size()
         self._POLICY_FILL_VALUE = 1 / self._POLICY_SIZE
         self._VALUE_SIZE = self.game_cls.num_players() + 1
@@ -233,21 +233,21 @@ class RawMCTSPlayer(MCTSPlayer):
         return False
 
     def play(self, state) -> int:
-        self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
-        gs = state.clone()   
+        self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())  
 
-        if self.args.baseline_search_strategy == "VANILLA-MCTS":
+        if self.strategy == "vanilla":
             self.reset()
             self.mcts.raw_search(state, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
             while not self.mcts.turn_completed:
-                self.mcts.raw_search(state, 1, self.args.add_root_noise, self.args.add_root_temp)
                 self.mcts.update_turn(state, self.temp)
 
-        elif self.args.baseline_search_strategy == "BB-MCTS":
+        elif self.strategy == "bridge-burning":
             self.reset()
             while not self.mcts.turn_completed:
-                self.mcts.raw_search(state, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+                self.mcts.raw_search(state, self.args.numMCTSSims/state.avg_atomic_actions(), self.args.add_root_noise, self.args.add_root_temp)
                 self.mcts.update_turn(state, self.temp)
+        
+        assert len(self.mcts.action_history) == len(self.mcts.policy_history)
         return self.mcts.action_history
     
     def process(self, batch: torch.Tensor):
@@ -255,15 +255,21 @@ class RawMCTSPlayer(MCTSPlayer):
                torch.zeros(batch.shape[0], self._VALUE_SIZE).to(batch.device)
 
 
+
+############### RawEMCTSPlayer ####################
+
 class RawEMCTSPlayer(MCTSPlayer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, strategy = "vanilla", *args, **kwargs):
         super().__init__(None, *args, **kwargs)
+        self.strategy = strategy
+        self.mode = "emcts"
+        self.__class__.__name__ = f"RawEMCTSPlayer(strategy = {strategy})"
         self._POLICY_SIZE = self.game_cls.action_size()
         self._POLICY_FILL_VALUE = 1 / self._POLICY_SIZE
         self._VALUE_SIZE = self.game_cls.num_players() + 1
     @staticmethod
     def supports_process() -> bool:
-        return True
+        return False
 
     @staticmethod
     def requires_model() -> bool:
@@ -277,30 +283,95 @@ class RawEMCTSPlayer(MCTSPlayer):
 
     def play(self, state) -> int:
         self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
-        gs = state.clone()
-        
-        if self.args.baseline_search_strategy == "VANILLA-MCTS":
+        if self.strategy == "vanilla":
             self.reset()
-            self.emcts.raw_search(gs, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
-            current_player = gs._player
+            self.emcts.raw_search(state, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
+            for _ in range(self.args.emcts_bb_phases):
+                self.emcts.update_turn(state, self.temp)
 
-            for a in self.emcts.action_history:
-                if current_player != gs.player or gs.win_state().any(): break
-                gs.play_action(a)
-
-        elif self.args.baseline_search_strategy == "BB-MCTS":
+        elif self.strategy == "bridge-burning":
             self.reset()
             for _ in range(self.args.emcts_bb_phases):
-                self.emcts.raw_search(gs, self.args.numMCTSSims/self.args.emcts_bb_phases, self.args.add_root_noise, self.args.add_root_temp)
-                m = self.emcts._root.best_child(0, 0)
-                self.emcts.update_root(gs, m)
-            current_player = state._player
+                self.emcts.raw_search(state, self.args.numMCTSSims/self.args.emcts_bb_phases, self.args.add_root_noise, self.args.add_root_temp)
+                self.emcts.update_turn(state, self.temp)
 
-            for a in self.emcts.action_history:
-                if current_player != gs.player or gs.win_state().any(): break
-                gs.play_action(a)
-
+        assert len(self.emcts.action_history) <= len(self.emcts.policy_history), f"{self.emcts.action_history,self.emcts.policy_history}"
+        self.emcts.policy_history = self.emcts.policy_history[0:len(self.emcts.action_history)]
         return self.emcts.action_history
+
     def process(self, batch: torch.Tensor):
         return torch.full((batch.shape[0], self._POLICY_SIZE), self._POLICY_FILL_VALUE).to(batch.device), \
                torch.zeros(batch.shape[0], self._VALUE_SIZE).to(batch.device)
+    
+
+
+
+############### OSLA ####################
+class OSLA(BasePlayer):
+    """Simple player who always takes a win if presented, or blocks a loss if obvious, otherwise is random."""
+
+    def __init__(self, game_cls, args, verbose=False):
+        self.verbose = verbose
+        self.args = args
+        self.mode = "osla"
+    def update(self, state: GameState, action: int) -> None:
+        self.mcts.update_root(state, action)
+
+    def reset(self):
+        self.mcts = MCTS(self.args)
+    
+    @staticmethod
+    def supports_process() -> bool:
+        return False
+
+    @staticmethod
+    def requires_model() -> bool:
+        return False
+    
+    def play(self, state: GameState) -> int:
+        current_player = state._player
+        turn = []
+        while state._player == current_player and not state.win_state().any():
+            action = self.play_atomic_action(state)
+            state.play_action(action)
+            turn.append(action)
+        return turn
+    
+    def play_atomic_action(self, state: GameState) -> int:
+        valid_moves = state.valid_moves()
+        win_move_set = set()
+        fallback_move_set = set()
+        stop_loss_move_set = set()
+        
+        for move, valid in enumerate(valid_moves):
+            if not valid: continue
+
+            new_state = state.clone()
+            new_state.play_action(move)
+            ws = new_state.win_state()
+            if ws[state.player]:
+                win_move_set.add(move)
+            elif ws[new_state.player]:
+                stop_loss_move_set.add(move)
+            else:
+                fallback_move_set.add(move)
+
+        if len(win_move_set) > 0:
+            ret_move = np.random.choice(list(win_move_set)).item()
+            if self.verbose:
+                print('Playing winning action %s from %s' %
+                      (ret_move, win_move_set))
+        elif len(stop_loss_move_set) > 0:
+            ret_move = np.random.choice(list(stop_loss_move_set)).item()
+            if self.verbose:
+                print('Playing loss stopping action %s from %s' %
+                      (ret_move, stop_loss_move_set))
+        elif len(fallback_move_set) > 0:
+            ret_move = np.random.choice(list(fallback_move_set)).item()
+            if self.verbose:
+                print('Playing random action %s from %s' %
+                      (ret_move, fallback_move_set))
+        else:
+            raise Exception('No valid moves remaining: %s' % state)
+
+        return ret_move

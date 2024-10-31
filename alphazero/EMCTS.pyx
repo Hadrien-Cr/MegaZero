@@ -30,8 +30,7 @@ cdef class Mutation:
         self.tau = tau
         self.a = a
     def __eq__(self, Mutation other):
-        self.tau = other.tau
-        self.a = other.a
+        return(self.tau == other.tau) and (self.a == other.a)
     def __repr__(self):
         return 'Mutation({}, {})' \
             .format(self.tau, self.a)
@@ -63,22 +62,27 @@ cdef class ENode:
         return 'ENode(m={}, seq={}, e={}, q={}, v={}, p={}, n={})' \
             .format(self.m, self.seq, self.e, self.q, self.v, self.p, self.n)
 
-    cdef void add_children(self, valid_mutations, 
-                                mutate_prior,
+    cdef void add_children(self, np.ndarray valid_mutations, 
+                                np.ndarray mutate_prior,
                                 list player_history,
                                 int num_players):
         """
-        Adds mutated childrens by providing an array moves_to_mutate[t,a] of the mutation that can be performed and the mutate_prior[t,a] array
+        Adds mutated childrens by providing an array valid_mutations[t,a] of the mutation that can be performed and the mutate_prior[t,a] array
         """
+        cdef int tau, a, player
+        assert len(self._children) == 0
+
         for tau in range(len(self.seq)):
+            player = player_history[tau]
             self._children.extend([ENode(seq = self.seq,
                                         m = Mutation(tau,a), 
                                         num_players = num_players,
-                                        p = mutate_prior[tau,a],
-                                        player = player_history[tau]) 
-                                        for a, valid in enumerate(valid_mutations[tau]) if valid ])
+                                        p = mutate_prior[tau, a],
+                                        player = player) 
+                                    for a, valid in enumerate(valid_mutations[tau]) if valid])
         # shuffle children
         np.random.shuffle(self._children)
+        assert len(self._children)>0,  "No children has been created"
 
     cdef float uct(self, float sqrt_parent_n, float fpu_value, float cpuct):
         return (fpu_value if self.n == 0 else self.q) + cpuct * self.p * sqrt_parent_n / (1 + self.n)
@@ -97,9 +101,43 @@ cdef class ENode:
             if uct > cur_best:
                 cur_best = uct
                 child = c
-
+            elif not self.e[self.player] and c.e[self.player]:
+                return c
         return child
+
+    cpdef np.ndarray mutate_and_play(self, object state, Mutation m, np.ndarray repair_prior):
+        '''
+        Returns valid_mutations
+        '''
+        cdef np.ndarray valids = np.zeros((len(self.seq), state.action_size()), dtype=np.float32)
+
+        for t in range(len(self.seq)):
+            if state.win_state().any(): 
+                break
+            
+            if t == m.tau:
+                try:
+                    state.play_action(m.a)
+                    self.seq[t] = (m.a)
+                except:
+                    try:
+                        state.play_action(self.seq[t])  
+                    except:
+                        a = np.argmax(repair_prior[t]*state.valid_moves()).item()
+                        state.play_action(a)  
+                        self.seq[t] = a
+            else:
+                try:
+                    state.play_action(self.seq[t])  
+                except:
+                    a = np.argmax(repair_prior[t]*state.valid_moves()).item()
+                    state.play_action(a)  
+                    self.seq[t] = a
+
+            valids[t] = state.valid_moves()
+            valids[t, self.seq[t]] = 0  
         
+        return valids        
 
 """
 def rebuild_mcts(num_players, cpuct, root, curnode, path):
@@ -125,7 +163,6 @@ cdef class EMCTS:
     cdef public ENode _curnode
     cdef public list _path
 
-    cdef public list state_history
     cdef public np.ndarray policy_history
     cdef public list action_history
     cdef public list player_history
@@ -147,12 +184,11 @@ cdef class EMCTS:
         self._root = ENode([], Mutation(-1,-1), self._num_players, p = 1, player = 0)
         self._curnode = self._root
         self._path = []
-
-        self.state_history = []
+        
+        self.mutate_prior = None # An array that gives the prior probability mutate_prior[t,a] to mutate the t-th to action a 
         self.policy_history = None # An array that stores the count of the mutations that have been made
         self.action_history = []  # Stores the best sequence found
         self.player_history = []
-        self.mutate_prior = None # An array that gives the prior probability mutate_prior[t,a] to mutate the t-th to action a 
         self.seq_length = args.emcts_horizon
 
         self.depth = 0
@@ -171,7 +207,6 @@ cdef class EMCTS:
         self._curnode = self._root
         self._path = []
 
-        self.state_history = []
         self.policy_history = None  # An array that stores the count of the mutations that have been made
         self.action_history = []
         self.player_history = []
@@ -184,32 +219,11 @@ cdef class EMCTS:
     # def __reduce__(self):
     #   return rebuild_mcts, (self._root._players, self.cpuct, self._root, self._curnode, self._path)
 
-    cpdef void update_root(self, object gs, Mutation m):
-        """
-        Should be called at the end of every bridge burning phase
-        Changes _root to the new root
-        """
-        cdef ENode c
-        for c in self._root._children:
-            if c.m == m:
-                self._root = c
-                return
-
-    cpdef void _add_root_noise(self):
-        cdef int num_valid_moves = len(self._root._children)
-        cdef float[:] noise = np.array(np.random.dirichlet(
-            [NOISE_ALPHA_RATIO / (num_valid_moves+1)] * num_valid_moves
-        ), dtype=np.float32)
-        cdef ENode c
-        cdef float n
-
-        for n, c in zip(noise, self._root._children):
-            c.p = c.p * (1 - self.root_noise_frac) + self.root_noise_frac * n
-    
     cpdef void search(self, object gs, object nn, int sims, bint add_root_noise, bint add_root_temp):
         cdef float[:] v
         cdef float[:] p
         self.max_depth = 0
+        assert not gs.win_state().any()
 
         for _ in range(sims):
             leaf = self.find_leaf(gs)
@@ -221,6 +235,7 @@ cdef class EMCTS:
         cdef float[:] v = np.zeros(gs.num_players() + 1, dtype=np.float32)  #np.full((value_size,), 1 / value_size, dtype=np.float32)
         cdef float[:] p = np.full(policy_size, 1, dtype=np.float32)
         self.max_depth = 0
+        assert not gs.win_state().any()
 
         for _ in range(sims):
             leaf = self.find_leaf(gs)
@@ -243,11 +258,12 @@ cdef class EMCTS:
         """
         self.depth = 0
         self._curnode = self._root
-        leaf = gs.clone()
+        cdef object leaf = gs.clone()
 
         # If the root sequence is not initialized
         if len(self._root.seq) < self.seq_length and not self._root.e.any():
             for a in self._root.seq:
+                assert not leaf.win_state().any()
                 leaf.play_action(a)
             self.action_history = self._curnode.seq[0:gs.d]
         # Else if the root sequence is initialized, look for mutations
@@ -261,54 +277,22 @@ cdef class EMCTS:
             if self.depth > self.max_depth:
                 self.max_depth = self.depth
                 self._discount_max_depth = self.depth
-
+            
             if self._curnode.n == 0:
-                valids = self.mutate_and_play(state = leaf,
-                                            node = self._curnode,
-                                        prior = self.mutate_prior)
+                valids = self._curnode.mutate_and_play(state = leaf, 
+                                                        m = self._curnode.m, 
+                                                        repair_prior = self.mutate_prior)
                 self.action_history = self._curnode.seq[0:gs.d]
+                self._curnode.e = leaf.win_state()
                 self._curnode.add_children( valid_mutations = valids, 
                                             mutate_prior = self.mutate_prior,
                                             num_players = self._num_players,
                                             player_history = self.player_history)
-                # Playing the sequence
-                self._curnode.e = leaf.win_state()
-
+            
+            if self.depth == 1 and not self._curnode.e.any() and self._root.e.any():
+                self.update_turn(gs, self._curnode.m)
         return(leaf)
 
-        
-    cpdef np.ndarray mutate_and_play(self, object state, object node, np.ndarray prior):
-        '''
-        Returns valid_mutations
-        '''
-        cdef np.ndarray valids = np.zeros((self.seq_length, state.action_size()), dtype=np.float32)
-
-        for t in range(0, self.seq_length):
-            if state.win_state().any(): 
-                break
-            if t == node.m.tau:
-                try:
-                    state.play_action(node.m.a)
-                    node.seq[t] = (node.m.a)
-                except:
-                    try:
-                        state.play_action(node.seq[t])  
-                    except:
-                        a = np.argmax(prior[t]*state.valid_moves()).item()
-                        state.play_action(a)  
-                        node.seq[t] = a
-            else:
-                try:
-                    state.play_action(node.seq[t])  
-                except:
-                    a = np.argmax(prior[t]*state.valid_moves()).item()
-                    state.play_action(a)  
-                    node.seq[t] = a
-
-            valids[t] = state.valid_moves()
-            valids[t, node.seq[t]] = 0  
-
-        return valids
 
     cpdef void process_results_from_init(self, object gs, float[:] value, float[:] pi, bint add_root_noise, bint add_root_temp):
         """
@@ -319,21 +303,24 @@ cdef class EMCTS:
             self.mutate_prior = np.zeros((self.seq_length, gs.action_size()), dtype=np.float32)
         
         if self.policy_history is None:
-            self.policy_history = np.zeros((self.seq_length, gs.action_size()), dtype=np.float32)
+            self.policy_history = np.zeros((gs.d, gs.action_size()), dtype=np.float32)
         
         assert self._curnode == self._root
 
         tau = len(self._root.seq)
-        pi *= np.asarray(gs.valid_moves(), dtype=np.float32)
-        # add root temperature
-        if add_root_temp:
-            pi = np.asarray(pi) ** (1.0 / self.root_temp)
-            # re-normalize
-            pi /= np.sum(pi)
-                
-        a = np.random.choice(len(pi), p = pi/np.sum(pi))
+        a = self.osla_test(gs)
 
-        self.policy_history[tau,a] += 1
+        if a == -1: # no winning move found
+            pi *= np.asarray(gs.valid_moves(), dtype=np.float32)
+            # add root temperature
+            if add_root_temp:
+                pi = np.asarray(pi) ** (1.0 / self.root_temp)
+                # re-normalize
+                pi /= np.sum(pi)
+                    
+            a = np.random.choice(len(pi), p = pi/np.sum(pi))
+        
+        if tau < gs.d: self.policy_history[tau,a] += 1
         self.mutate_prior[tau] = pi
         self._root.seq.append(a)
         self.player_history.append(gs._player)
@@ -366,6 +353,9 @@ cdef class EMCTS:
         cdef float discount
         cdef int i = 0
 
+        if self._curnode.e.any():
+            value = np.array(self._curnode.e, dtype=np.float32)
+
         while self._path:
             parent = self._path.pop()
             v = self._get_value(value, parent.player, num_players)
@@ -389,7 +379,7 @@ cdef class EMCTS:
             self._curnode.n += 1
             
             m = self._curnode.m
-            self.policy_history[m.tau, m.a] += 1
+            if m.tau <gs.d: self.policy_history[m.tau, m.a] += 1
             
             self._curnode = parent
             i += 1
@@ -427,7 +417,103 @@ cdef class EMCTS:
             
         return value
 
+    cpdef int osla_test(self, object gs):
+        valid_moves = gs.valid_moves()
+        cdef list win_move_set = []
+        
+        for move, valid in enumerate(valid_moves):
+            if not valid: continue
 
+            new_state = gs.clone()
+            new_state.play_action(move)
+            ws = new_state.win_state()
+            if ws[gs.player]:
+                win_move_set.append(move)
 
+        if len(win_move_set) > 0:
+            a = np.random.choice(win_move_set).item()
+            return a
+        else:
+            return -1
 
+    cpdef void update_root(self, object gs, Mutation m):
+        """
+        Should be called at the end of every bridge burning phase
+        Changes _root to the new root
+        """
+        cdef ENode c
+        assert len(self._root._children)>0, f"Root {self._root} has no children"
+        
+        cdef float seen_policy = sum([c.p for c in self._root._children if c.n > 0])
+        cdef float fpu_value = self._root.v - 0 * sqrt(seen_policy)
+        cdef float cur_best = -float('inf')
+        cdef float sqrt_n = sqrt(self._root.n)
+        #p = False
+        #for c in self._root._children:
+        #    if c.e.any(): p = True
+        #if p: print('-'*100)
+        for c in self._root._children:
+            #if p: 
+            #    print(c.m == m,c.e, c.n, c.v, c.q, c.e[self._root.player])
+            #    assert c.m != m or c.e[self._root.player]
+            if c.m == m:
+                self._root = c
+                return
+        raise ValueError, "Invalid mutation selected"
 
+    cpdef void update_turn(self, object gs, float temp):
+        if len(self._root._children)>0 and np.sum(self.counts(gs))>0:
+            # draw the best mutation found
+            policy_of_mut = self.probs(gs, temp)
+            idx_of_mut = np.random.choice(len(policy_of_mut), p=policy_of_mut)        
+            m = Mutation(tau = idx_of_mut//gs.action_size(), a = idx_of_mut%gs.action_size())
+            self.update_root(gs, m)
+        else:
+            pass
+
+    cpdef np.ndarray probs(self, object gs, float temp=1.0):
+        cdef float[:] counts = np.array(self.counts(gs), dtype=np.float32)
+        cdef np.ndarray[dtype=np.float32_t, ndim=1] probs
+        cdef Py_ssize_t best_action
+
+        assert np.sum(self.counts(gs))>0
+        
+        if temp == 0:
+            best_action = np.argmax(counts)
+            probs = np.zeros_like(counts)
+            probs[best_action] = 1
+            return probs
+
+        try:
+            probs = (counts / np.sum(counts)) ** (1.0 / temp)
+            probs /= np.sum(probs)
+            return probs
+
+        except OverflowError:
+            best_action = np.argmax(counts)
+            probs = np.zeros_like(counts)
+            probs[best_action] = 1
+            return probs
+
+    cpdef int[:] counts(self, object gs):
+        cdef int[:] counts = np.zeros(self.seq_length * gs.action_size(), dtype=np.int32)
+        cdef ENode c
+        cdef int idx_of_mut
+        assert len(self._root._children) > 0
+        
+        for c in self._root._children:
+            idx_of_mut = c.m.a + c.m.tau*gs.action_size()
+            counts[idx_of_mut] = c.n
+        return np.asarray(counts)
+
+    cpdef void _add_root_noise(self):
+        cdef int num_valid_moves = len(self._root._children)
+        cdef float[:] noise = np.array(np.random.dirichlet(
+            [NOISE_ALPHA_RATIO / (num_valid_moves+1)] * num_valid_moves
+        ), dtype=np.float32)
+        cdef ENode c
+        cdef float n
+
+        for n, c in zip(noise, self._root._children):
+            c.p = c.p * (1 - self.root_noise_frac) + self.root_noise_frac * n
+    

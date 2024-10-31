@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from alphazero.envs.connect4d.connect4d import Game, NUM_BOARDS  
+from alphazero.envs.connect4d.connect4d import Game, NUM_BOARDS 
 import dill as pickle
 import time
 '''
@@ -65,17 +65,28 @@ def test_symmetries():
 # Test 5: Game end detection
 def test_game_ended():
     game = init_board_from_array([
-        [0, 0, 0, 0, 1, 0, 0],
-        [0, 0, 0, 1, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
         [1, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0]
+        [1, 0, 0, 0, 0, 0, 0]
     ])
-    assert np.array_equal(game.win_state(), np.array([True, False, False])) # Player 1 wins with a diagonal
+    assert np.array_equal(game.win_state(), np.array([False, False, False])) 
+    game.play_action(0)
+    assert np.array_equal(game.win_state(), np.array([False, False, False]))  # Player 1 wins 
     
-    game = init_board_from_moves([])
-    assert np.array_equal(game.win_state(), np.array([False, False, False]))  # Initial state is not a game ended
+    game = init_board_from_array([
+        [0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0]
+    ])
+    assert np.array_equal(game.win_state(), np.array([False, False, False])) # Not a game ended
+    game.play_action(0)
+    assert np.array_equal(game.win_state(), np.array([True, False, False]))  # Player 1 wins 
     
     game = init_board_from_array([
         [-1, 1,-1, 1,-1, 1,-1],
@@ -85,7 +96,7 @@ def test_game_ended():
         [-1, 1,-1, 1,-1, 1,-1],
         [-1, 1,-1, 1,-1, 1,-1]
     ])
-    game.micro_step = game.d -1
+    game.micro_step = 0
     assert np.array_equal(game.win_state(), np.array([False, False, True])) # End of game in a draw
     
 # Test 6: Immutable move check
@@ -122,27 +133,26 @@ def is_pickleable():
 
 # Test 10: Agent
 def test_agent():
-    
-    from alphazero.envs.connect4d.players import OneStepLookaheadConnect4dPlayer
-    from alphazero.GenericPlayers import NNPlayer,RawMCTSPlayer, RandomPlayer, RawEMCTSPlayer
-    from alphazero.envs.strands.train import args
+
+    from alphazero.GenericPlayers import NNPlayer,RawMCTSPlayer, RandomPlayer, RawEMCTSPlayer, OSLA
+    from alphazero.envs.connect4d.train import args
     from alphazero.Arena import Arena
     import alphazero.Coach as c
-    from random import shuffle
-    args =  c.get_args(args)
+    from random import shuffle 
+    args = c.get_args(args)
+    args['emcts_horizon'] = 2*NUM_BOARDS
     args['_num_players'] = 2
-    args['numMCTSSims'] = 100
-    args['arenaCompareBaseline'] = 10
-    args['arenaCompare'] = 10
+    args['numMCTSSims'] = 1000
+    args['arenaCompareBaseline'] = 100
+    args['arenaCompare'] = 100
     args['arena_batch_size'] = 1
+    args['arenaTemp'] = 0
 
-
-    for self_play_search_strategy in ["VANILLA-MCTS", "BB-MCTS"]:
-        args['self_play_search_strategy'] = self_play_search_strategy
+    for strategy in ["vanilla", "bridge-burning"]:
         agents = [
-                    OneStepLookaheadConnect4dPlayer(Game, args),
-                    RawEMCTSPlayer(Game, args),
-                    RawMCTSPlayer(Game, args),
+                    OSLA(Game, args),
+                    RawEMCTSPlayer(strategy, Game, args),
+                    RawMCTSPlayer(strategy, Game, args),
                     RandomPlayer(Game),
                 ]
         for _ in range(10):
@@ -156,7 +166,6 @@ def test_agent():
 def test_timings():
     game = Game()
     time_act, time_valid_moves, time_clone, time_ws = 0, 0, 0, 0
-
     for _ in range(100_000): 
         if game.win_state().any():
             game = Game()

@@ -25,6 +25,9 @@ import os
 DEFAULT_ARGS = dotdict({
     'run_name': 'boardgame',
     'emcts_horizon': 10,
+    'emcts_bb_phases':10,
+    'self_play_mode': 'mcts', #'emcts', 'mcts',
+    'self_play_strategy': 'vanilla', #'bridge-burning','mode'
     'cuda': torch.cuda.is_available(),
     'workers': mp.cpu_count(),
     'startIter': 0,

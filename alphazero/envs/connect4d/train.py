@@ -5,15 +5,16 @@ from torch import multiprocessing as mp
 from alphazero.Coach import Coach, get_args
 from alphazero.NNetWrapper import NNetWrapper as nn
 from alphazero.envs.connect4d.connect4d import Game
-from alphazero.envs.connect4d.players import OneStepLookaheadConnect4dPlayer
-from alphazero.GenericPlayers import RawMCTSPlayer
+from alphazero.GenericPlayers import RawMCTSPlayer, OSLA
 from alphazero.utils import dotdict
 
 args = get_args(dotdict({
     'run_name': 'connect4d_fpu',
-    'self_play_search_strategy': 'VANILLA-MCTS', #VANILLA-MCTS, BB-MCTS
-    'baseline_search_strategy': 'VANILLA-MCTS', #VANILLA-MCTS, BB-MCTS
-    'baselineTester': OneStepLookaheadConnect4dPlayer,
+    'emcts_horizon': 4,
+    'emcts_bb_phases': 5,
+    'self_play_mode': 'mcts', #'emcts', 'mcts',
+    'self_play_strategy': 'vanilla', #'bridge-burning','mode'
+    'baselineTester': OSLA,
     'workers': mp.cpu_count(),
     'startIter': 1,
     'numIters': 1000,
