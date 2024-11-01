@@ -102,7 +102,7 @@ class NNPlayer(BasePlayer):
 ############### MCTSPlayer ####################
 
 class MCTSPlayer(BasePlayer):
-    def __init__(self, nn: NNetWrapper, *args, strategy = "vanilla", print_policy=False,
+    def __init__(self, strategy, nn: NNetWrapper, *args, print_policy=False,
                  average_value=False, draw_mcts=False, draw_depth=2, **kwargs):
         super().__init__(*args, **kwargs)
         self.nn = nn
@@ -151,7 +151,9 @@ class MCTSPlayer(BasePlayer):
             while not self.mcts.turn_completed:
                 self.mcts.search(state, self.nn, self.args.numMCTSSims/state.avg_tomic_actions(), self.args.add_root_noise, self.args.add_root_temp)
                 self.mcts.update_turn(state, self.temp)
-        return self.mcts.action_history
+
+        turn, policy = self.mcts.get_results()
+        return turn
     
     def process(self, *args, **kwargs):
         return self.nn.process(*args, **kwargs)
@@ -162,7 +164,7 @@ class MCTSPlayer(BasePlayer):
 
 
 class EMCTSPlayer(BasePlayer):
-    def __init__(self, nn: NNetWrapper, *args, strategy = "vanilla", print_policy=False,
+    def __init__(self, strategy, nn: NNetWrapper, *args, print_policy=False,
                  average_value=False, draw_mcts=False, draw_depth=2, **kwargs):
         super().__init__(*args, **kwargs)
         self.nn = nn
@@ -205,9 +207,8 @@ class EMCTSPlayer(BasePlayer):
                 self.emcts.search(state, self.nn, self.args.numMCTSSims/self.args.emcts_bb_phases, self.args.add_root_noise, self.args.add_root_temp)
                 self.emcts.update_turn(state, self.temp)
 
-        assert len(self.emcts.action_history) <= len(self.emcts.policy_history), f"{self.emcts.action_history,self.emcts.policy_history}"
-        self.emcts.policy_history = self.emcts.policy_history[0:len(self.emcts.action_history)]
-        return self.emcts.action_history
+        turn, policy = self.emcts.get_results()
+        return turn
     
     def process(self, *args, **kwargs):
         return self.nn.process(*args, **kwargs)
@@ -217,7 +218,7 @@ class EMCTSPlayer(BasePlayer):
 
 class RawMCTSPlayer(MCTSPlayer):
     def __init__(self, strategy = "vanilla", *args, **kwargs):
-        super().__init__(None, *args, **kwargs)
+        super().__init__(strategy, None, *args, **kwargs)
         self.strategy = strategy
         self.mode = "mcts"
         self.__class__.__name__ = f"RawMCTSPlayer(strategy = {strategy})"
@@ -245,10 +246,10 @@ class RawMCTSPlayer(MCTSPlayer):
             self.reset()
             while not self.mcts.turn_completed:
                 self.mcts.raw_search(state, self.args.numMCTSSims/state.avg_atomic_actions(), self.args.add_root_noise, self.args.add_root_temp)
-                self.mcts.update_turn(state, self.temp)
+                if not self.mcts.turn_completed: self.mcts.update_turn(state, self.temp)
         
-        assert len(self.mcts.action_history) == len(self.mcts.policy_history)
-        return self.mcts.action_history
+        turn, policy = self.mcts.get_results()
+        return turn
     
     def process(self, batch: torch.Tensor):
         return torch.full((batch.shape[0], self._POLICY_SIZE), self._POLICY_FILL_VALUE).to(batch.device), \
@@ -260,7 +261,7 @@ class RawMCTSPlayer(MCTSPlayer):
 
 class RawEMCTSPlayer(MCTSPlayer):
     def __init__(self, strategy = "vanilla", *args, **kwargs):
-        super().__init__(None, *args, **kwargs)
+        super().__init__(strategy, None, *args, **kwargs)
         self.strategy = strategy
         self.mode = "emcts"
         self.__class__.__name__ = f"RawEMCTSPlayer(strategy = {strategy})"
@@ -295,9 +296,8 @@ class RawEMCTSPlayer(MCTSPlayer):
                 self.emcts.raw_search(state, self.args.numMCTSSims/self.args.emcts_bb_phases, self.args.add_root_noise, self.args.add_root_temp)
                 self.emcts.update_turn(state, self.temp)
 
-        assert len(self.emcts.action_history) <= len(self.emcts.policy_history), f"{self.emcts.action_history,self.emcts.policy_history}"
-        self.emcts.policy_history = self.emcts.policy_history[0:len(self.emcts.action_history)]
-        return self.emcts.action_history
+        turn, policy = self.emcts.get_results()
+        return turn
 
     def process(self, batch: torch.Tensor):
         return torch.full((batch.shape[0], self._POLICY_SIZE), self._POLICY_FILL_VALUE).to(batch.device), \
@@ -306,8 +306,8 @@ class RawEMCTSPlayer(MCTSPlayer):
 
 
 
-############### OSLA ####################
-class OSLA(BasePlayer):
+############### RawOSLA ####################
+class RawOSLA(BasePlayer):
     """Simple player who always takes a win if presented, or blocks a loss if obvious, otherwise is random."""
 
     def __init__(self, game_cls, args, verbose=False):

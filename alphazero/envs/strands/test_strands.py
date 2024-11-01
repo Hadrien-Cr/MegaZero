@@ -279,35 +279,32 @@ def is_pickleable():
 # Test 10: Heuristic Agent
 def test_agent():
     
-    from alphazero.envs.strands.heuristic import StrandsHeuristics, StrandsHeursiticMCTS,StrandsHeursiticOSLA
+    from alphazero.envs.strands.heuristic import StrandsHeuristicEMCTS, StrandsHeuristicMCTS,StrandsHeuristicOSLA
     from alphazero.GenericPlayers import NNPlayer, RawMCTSPlayer, RandomPlayer, RawEMCTSPlayer
     from alphazero.envs.strands.train import args
     import alphazero.Coach as c
     from random import shuffle
     args =  c.get_args(args)
+    args['emcts_horizon'] = 2*6
     args['_num_players'] = 2
-    args['numMCTSSims'] = 100
-    args['baseline_search_strategy'] = "VANILLA-MCTS"
-    args['arenaCompareBaseline'] = 5
-    args['arenaCompare'] = 5
+    args['numMCTSSims'] = 1000
+    args['arenaCompareBaseline'] = 10
+    args['arenaCompare'] = 10
     args['arena_batch_size'] = 1
+    args['arenaTemp'] = 0
 
 
-    for self_play_search_strategy in ["VANILLA-MCTS", "BB-MCTS"]:
-        args['self_play_search_strategy'] = self_play_search_strategy
+    for strategy in ["vanilla", "bridge-burning"]:
         agents = [
-                    StrandsHeursiticMCTS(Game, args),
-                    StrandsHeursiticOSLA(Game, args),
-                    RawMCTSPlayer(Game, args),
-                    RawEMCTSPlayer(Game, args),
+                    StrandsHeuristicEMCTS(strategy, Game, args),
+                    StrandsHeuristicMCTS(strategy, Game, args),
+                    StrandsHeuristicOSLA(strategy, Game, args),
                     RandomPlayer(Game),
                 ]
-        for _ in range(10):
+        for _ in range(5):
             shuffle(agents)
             players = [agents[0], agents[1]]
+            print(players[0].__class__.__name__, "vs", players[1].__class__.__name__)
             arena = Arena(players, Game, use_batched_mcts=args.arenaBatched, args=args)
             arena.play_games(args.arenaCompare)
     
-
-if __name__ == "__main__":
-    pytest.main()

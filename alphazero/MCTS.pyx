@@ -180,9 +180,9 @@ cdef class MCTS:
         for _ in range(sims):
             leaf = self.find_leaf(gs)
             p, v = nn(leaf.observation())
-            self.process_results(leaf, v, p, add_root_noise, add_root_temp)
             if self.turn_completed:
                 break
+            self.process_results(leaf, v, p, add_root_noise, add_root_temp)
 
     cpdef void raw_search(self, object gs, int sims, bint add_root_noise, bint add_root_temp):
         cdef Py_ssize_t policy_size = gs.action_size()
@@ -195,6 +195,10 @@ cdef class MCTS:
             if self.turn_completed:
                 break
             self.process_results(leaf, v, p, add_root_noise, add_root_temp)
+
+    def get_results(self):
+        assert len(self.action_history) == len(self.policy_history)
+        return self.action_history , self.policy_history
     
     cpdef object find_leaf(self, object gs):
         self.depth = 0

@@ -19,7 +19,7 @@ ctypedef np.float32_t DTYPE_t
 
 NOISE_ALPHA_RATIO = 10.83
 _DRAW_VALUE = 0.5
-
+PAD = -1
 np.seterr(all='raise')
 
 
@@ -81,8 +81,8 @@ cdef class ENode:
                                         player = player) 
                                     for a, valid in enumerate(valid_mutations[tau]) if valid])
         # shuffle children
-        np.random.shuffle(self._children)
-        assert len(self._children)>0,  "No children has been created"
+        # np.random.shuffle(self._children)
+        assert len(self._children)>0,  f"No children has been created from node {self} with {np.sum(valid_mutations)} valid_mutations."
 
     cdef float uct(self, float sqrt_parent_n, float fpu_value, float cpuct):
         return (fpu_value if self.n == 0 else self.q) + cpuct * self.p * sqrt_parent_n / (1 + self.n)
@@ -114,18 +114,26 @@ cdef class ENode:
         for t in range(len(self.seq)):
             if state.win_state().any(): 
                 break
-            
-            if t == m.tau:
+            if self.seq[t] == PAD:
+                pass
+            elif t == m.tau and (m.a) == PAD:
+                pass
+            elif t == m.tau:
                 try:
                     state.play_action(m.a)
                     self.seq[t] = (m.a)
                 except:
                     try:
                         state.play_action(self.seq[t])  
+                        valids[t] = state.valid_moves()
+                        valids[t, self.seq[t]] = 0  
                     except:
                         a = np.argmax(repair_prior[t]*state.valid_moves()).item()
                         state.play_action(a)  
                         self.seq[t] = a
+                valids[t] = state.valid_moves()
+                valids[t, self.seq[t]] = 0  
+            
             else:
                 try:
                     state.play_action(self.seq[t])  
@@ -133,9 +141,8 @@ cdef class ENode:
                     a = np.argmax(repair_prior[t]*state.valid_moves()).item()
                     state.play_action(a)  
                     self.seq[t] = a
-
-            valids[t] = state.valid_moves()
-            valids[t, self.seq[t]] = 0  
+                valids[t] = state.valid_moves()
+                valids[t, self.seq[t]] = 0  
         
         return valids        
 
@@ -240,7 +247,16 @@ cdef class EMCTS:
         for _ in range(sims):
             leaf = self.find_leaf(gs)
             self.process_results(leaf, v, p, add_root_noise, add_root_temp)
-     
+    
+    def get_results(self):
+        self.action_history = list(filter(lambda a: a!=PAD, self.action_history))
+        cdef int l = len(self.action_history)
+        self.policy_history = self.policy_history[0:l]
+        assert  len(self.policy_history) == l , f"{ self.action_history, self.policy_history}
+        for tau in range(l):
+            self.policy_history[l]/= np.sum(self.policy_history[l])
+        return self.action_history , self.policy_history 
+
     cpdef object find_leaf(self, object gs):
         """
         Find the next node to evaluate and return the game state
@@ -264,7 +280,7 @@ cdef class EMCTS:
         if len(self._root.seq) < self.seq_length and not self._root.e.any():
             for a in self._root.seq:
                 assert not leaf.win_state().any()
-                leaf.play_action(a)
+                if a!= PAD: leaf.play_action(a)
             self.action_history = self._curnode.seq[0:gs.d]
         # Else if the root sequence is initialized, look for mutations
         else:
@@ -310,7 +326,7 @@ cdef class EMCTS:
         tau = len(self._root.seq)
         a = self.osla_test(gs)
 
-        if a == -1: # no winning move found
+        if a == PAD: # no winning move found
             pi *= np.asarray(gs.valid_moves(), dtype=np.float32)
             # add root temperature
             if add_root_temp:
@@ -339,7 +355,7 @@ cdef class EMCTS:
 
     cpdef void pad_histories(self, int pad, int player):
         self.player_history += [player for _ in range(pad)]
-        self._root.seq += [-1 for _ in range(pad)]
+        self._root.seq += [PAD for _ in range(pad)]
 
 
     cpdef void process_results_from_mutations(self, object gs, float[:] value, float[:] pi, bint add_root_noise, bint add_root_temp):
@@ -434,7 +450,7 @@ cdef class EMCTS:
             a = np.random.choice(win_move_set).item()
             return a
         else:
-            return -1
+            return PAD
 
     cpdef void update_root(self, object gs, Mutation m):
         """

@@ -5,14 +5,16 @@ from torch import multiprocessing as mp
 from alphazero.Coach import Coach, get_args
 from alphazero.NNetWrapper import NNetWrapper as nn
 from alphazero.envs.strands.strands import Game, rules_strands
-from alphazero.envs.strands.heuristic import StrandsHeursiticMCTS,StrandsHeursiticOSLA
+from alphazero.envs.strands.heuristic import StrandsHeuristicMCTS,StrandsHeuristicOSLA
 from alphazero.utils import dotdict
 
 args = get_args(dotdict({
     'run_name': 'strands_fpu',
-    'self_play_search_strategy': 'VANILLA-MCTS', #VANILLA-MCTS, BB-MCTS
-    'baseline_search_strategy': 'VANILLA-MCTS', #VANILLA-MCTS, BB-MCTS
-    'baselineTester': StrandsHeursiticOSLA,
+    'emcts_horizon': 12,
+    'emcts_bb_phases': 5,
+    'self_play_mode': 'mcts', #'emcts', 'mcts',
+    'self_play_strategy': 'vanilla', #'bridge-burning','mode'
+    'baselineTester': StrandsHeuristicOSLA,
     'workers': mp.cpu_count()-1,
     'symmetricSamples': True,
     'startIter': 1,

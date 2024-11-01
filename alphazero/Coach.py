@@ -232,7 +232,7 @@ class Coach:
         print('------------------')
         print('Because of batching, it can take a long time before any games finish.')
         print('------------------')
-        print("Using search strategy",  self.args.self_play_search_strategy, "and n_sims =", self.args.numMCTSSims) 
+        print("Using search strategy",  self.args.self_play_strategy, "and n_sims =", self.args.numMCTSSims) 
         try:
 
             while self.model_iter <= self.args.numIters:

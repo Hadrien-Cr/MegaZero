@@ -3,9 +3,9 @@ from alphazero.Game import GameState
 import numpy as np
 from scipy import signal
 from alphazero.NNetWrapper import BaseWrapper
-from alphazero.GenericPlayers import MCTSPlayer, NNPlayer
+from alphazero.GenericPlayers import NNPlayer, MCTSPlayer, EMCTSPlayer
 import torch
-class StrandsHeuristics(BaseWrapper):
+class StrandsHeuristic(BaseWrapper):
     def __init__(self, game_cls, *args):
         super().__init__(game_cls, *args)
 
@@ -13,11 +13,11 @@ class StrandsHeuristics(BaseWrapper):
         state = self.game_cls()
         state._board.hexes = np.copy(obs[0,:])
         # Value estimate
-        # heuritic for value estimation: (black - white) / (1+ empty)
+        # heuritic for value estimation: (0.5 + 0.5*advantage/(1+sum(areas_empty))
         areas_black, areas_white, areas_empty = state._board.compute_areas()
         advantage = areas_black[0] - areas_white[0]
-        value_black = (areas_black[0] - areas_white[0])/(1+np.sum(areas_empty))
-        value_white = (areas_white[0] - areas_black[0])/(1+np.sum(areas_empty))
+        value_black = 0.5 + (+ 0.5*advantage/(1+np.sum(areas_empty)))
+        value_white = 0.5 +(- 0.5*advantage/(1+np.sum(areas_empty)))
         values = np.array([value_black, value_white, 0], dtype=np.float32)
         
 
@@ -53,12 +53,21 @@ class StrandsHeuristics(BaseWrapper):
             v[i] = torch.Tensor(v_i)
         return (p,v)
     
-class StrandsHeursiticMCTS(MCTSPlayer):
+class StrandsHeuristicMCTS(MCTSPlayer):
+    def __init__(self, strategy = "vanilla", *args, **kwargs):
+        super().__init__(strategy, None, *args, **kwargs)
+        self.nn = StrandsHeuristic(self.game_cls, args)
+    def supports_process(self):
+        return False
+class StrandsHeuristicEMCTS(EMCTSPlayer):
+    def __init__(self, strategy = "vanilla", *args, **kwargs):
+        super().__init__(strategy, None, *args, **kwargs)
+        self.nn = StrandsHeuristic(self.game_cls, args)
+    def supports_process(self):
+        return False
+class StrandsHeuristicOSLA(NNPlayer):
     def __init__(self, *args, **kwargs):
-        super().__init__(None, *args, **kwargs)
-        self.nn = StrandsHeuristics(self.game_cls, args)
-    
-class StrandsHeursiticOSLA(NNPlayer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(None, *args, **kwargs)
-        self.nn = StrandsHeuristics(self.game_cls, args)
+        super().__init__(*args, **kwargs)
+        self.nn = StrandsHeuristic(self.game_cls, args)
+    def supports_process(self):
+        return False
