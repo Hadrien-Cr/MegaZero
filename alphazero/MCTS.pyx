@@ -240,6 +240,7 @@ cdef class MCTS:
             self.turn_completed = True
     
     cpdef void update_turn(self, object gs, float temp):
+        assert not gs.win_state().any()
         if len(self._root._children) == 0:
             self._root.add_children(gs.valid_moves(), self._num_players)
         policy = self.probs(gs, temp)

@@ -33,9 +33,9 @@ class StrandsHeuristic(BaseWrapper):
                                     [1,0,1],
                                     [1,1,0]], dtype=np.float32)
         
-        pi_hexes = 0.1*np.asarray(state._board.hexes_to_labels) + signal.convolve2d(tiles, neighbour_filter, mode='same')
-        pi = pi_hexes.flatten()
-        
+        pi_hexes = signal.convolve2d(tiles, neighbour_filter, mode='same')
+        pi = pi_hexes.flatten() + np.full(state.action_size(), 0.1)
+
         return np.asarray(pi, dtype=np.float32), values
     
     def load_checkpoint(self, folder, filename):
@@ -56,12 +56,14 @@ class StrandsHeuristic(BaseWrapper):
 class StrandsHeuristicMCTS(MCTSPlayer):
     def __init__(self, strategy = "vanilla", *args, **kwargs):
         super().__init__(strategy, None, *args, **kwargs)
+        self.__class__.__name__ = f"StrandsHeuristicMCTS(strategy = {strategy})"
         self.nn = StrandsHeuristic(self.game_cls, args)
     def supports_process(self):
         return False
 class StrandsHeuristicEMCTS(EMCTSPlayer):
     def __init__(self, strategy = "vanilla", *args, **kwargs):
         super().__init__(strategy, None, *args, **kwargs)
+        self.__class__.__name__ = f"StrandsHeuristicEMCTS(strategy = {strategy})"
         self.nn = StrandsHeuristic(self.game_cls, args)
     def supports_process(self):
         return False

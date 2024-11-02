@@ -149,8 +149,8 @@ class MCTSPlayer(BasePlayer):
         elif self.strategy == "bridge-burning":
             self.reset()
             while not self.mcts.turn_completed:
-                self.mcts.search(state, self.nn, self.args.numMCTSSims/state.avg_tomic_actions(), self.args.add_root_noise, self.args.add_root_temp)
-                self.mcts.update_turn(state, self.temp)
+                self.mcts.search(state, self.nn, self.args.numMCTSSims/state.avg_atomic_actions(), self.args.add_root_noise, self.args.add_root_temp)
+                if not self.mcts.turn_completed: self.mcts.update_turn(state, self.temp)
 
         turn, policy = self.mcts.get_results()
         return turn

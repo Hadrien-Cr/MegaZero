@@ -82,7 +82,7 @@ cdef class ENode:
                                     for a, valid in enumerate(valid_mutations[tau]) if valid])
         # shuffle children
         # np.random.shuffle(self._children)
-        assert len(self._children)>0,  f"No children has been created from node {self} with {np.sum(valid_mutations)} valid_mutations."
+        assert len(self._children)>0 or self.e.any(),  f"No children has been created from non terminal node {self} with {np.sum(valid_mutations)} valid_mutations."
 
     cdef float uct(self, float sqrt_parent_n, float fpu_value, float cpuct):
         return (fpu_value if self.n == 0 else self.q) + cpuct * self.p * sqrt_parent_n / (1 + self.n)
@@ -128,6 +128,7 @@ cdef class ENode:
                         valids[t] = state.valid_moves()
                         valids[t, self.seq[t]] = 0  
                     except:
+                        assert np.sum(repair_prior[t]*state.valid_moves())>0
                         a = np.argmax(repair_prior[t]*state.valid_moves()).item()
                         state.play_action(a)  
                         self.seq[t] = a
@@ -138,6 +139,7 @@ cdef class ENode:
                 try:
                     state.play_action(self.seq[t])  
                 except:
+                    assert np.sum(repair_prior[t]*state.valid_moves())>0, f"{state.valid_moves()},{repair_prior[t]}"
                     a = np.argmax(repair_prior[t]*state.valid_moves()).item()
                     state.play_action(a)  
                     self.seq[t] = a
@@ -251,11 +253,11 @@ cdef class EMCTS:
     def get_results(self):
         self.action_history = list(filter(lambda a: a!=PAD, self.action_history))
         cdef int l = len(self.action_history)
-        self.policy_history = self.policy_history[0:l]
-        assert  len(self.policy_history) == l , f"{ self.action_history, self.policy_history}
-        for tau in range(l):
-            self.policy_history[l]/= np.sum(self.policy_history[l])
-        return self.action_history , self.policy_history 
+        cdef int t
+        cdef np.ndarray pi = np.zeros((l, len(self.policy_history[0])), dtype = np.float32)
+        for t in range(l):
+            pi[t] = self.policy_history[t]/np.sum(self.policy_history[t])
+        return self.action_history , pi
 
     cpdef object find_leaf(self, object gs):
         """
@@ -275,7 +277,7 @@ cdef class EMCTS:
         self.depth = 0
         self._curnode = self._root
         cdef object leaf = gs.clone()
-
+        assert not gs.win_state().any(), "Impossible to call"
         # If the root sequence is not initialized
         if len(self._root.seq) < self.seq_length and not self._root.e.any():
             for a in self._root.seq:
@@ -319,13 +321,13 @@ cdef class EMCTS:
             self.mutate_prior = np.zeros((self.seq_length, gs.action_size()), dtype=np.float32)
         
         if self.policy_history is None:
-            self.policy_history = np.zeros((gs.d, gs.action_size()), dtype=np.float32)
+            self.policy_history = np.zeros((gs.d, gs.action_size()), dtype=np.int64)
         
         assert self._curnode == self._root
 
         tau = len(self._root.seq)
         a = self.osla_test(gs)
-
+        self.mutate_prior[tau] = pi
         if a == PAD: # no winning move found
             pi *= np.asarray(gs.valid_moves(), dtype=np.float32)
             # add root temperature
@@ -337,7 +339,7 @@ cdef class EMCTS:
             a = np.random.choice(len(pi), p = pi/np.sum(pi))
         
         if tau < gs.d: self.policy_history[tau,a] += 1
-        self.mutate_prior[tau] = pi
+        
         self._root.seq.append(a)
         self.player_history.append(gs._player)
 

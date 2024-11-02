@@ -50,10 +50,11 @@ cdef class Board:
 
     def add_tile(self, int x, int y, int target):
         assert self.hexes_to_labels[x][y]>0, f"Hex {x,y} is out of valid bounds"
+        assert self.hexes[x,y] == 0, f"Hex {x,y} already taken {self}"
         if self.digit_chosen == 0:
+            assert self.hexes_available[self.hexes_to_labels[x][y]]>0, f"No hexes available for digit {self.hexes_to_labels[x][y]} {self}"
             self.update_digit_chosen(self.hexes_to_labels[x][y])
-        if self.hexes[x,y] != 0:
-            raise ValueError(f"Hex {x,y} already taken")
+        assert self.hexes_to_labels[x][y] == self.digit_chosen
 
         self.hexes[x,y] = target
         self.rest -= 1
@@ -64,10 +65,6 @@ cdef class Board:
 
     def update_digit_chosen(self, int new_digit):
         self.digit_chosen = new_digit
-
-        if self.hexes_available[new_digit] <= 0:
-            raise ValueError(f"Digit {new_digit} is not available (only {self.hexes_available[new_digit]} valid free hexes)")
-
         self.rest = min(self.digit_chosen, self.hexes_available[new_digit])
 
     cdef list[int] compute_neighbours(self, int x, int y):
@@ -132,4 +129,24 @@ cdef class Board:
         return areas_black, areas_white, areas_empty
 
     def __str__(self):
-        return str(np.asarray(self.hexes))
+        string =f"Digit Selected: {self.digit_chosen if self.digit_chosen >0 else None}, \
+                Rest of Hexes for this turn: {self.rest}, \
+                Hexes available: {np.asarray(self.hexes_available)} \n"
+        c = [" _ ", " B ", " W "]
+        for row in range(self.width):
+            offset = abs(row-(self.width//2))
+            string+=3*offset*" "
+            
+            for col in range(self.width):
+                label = self.hexes_to_labels[row][col]
+                value = self.hexes[row][col]
+                if label>0: string += c[value]+ "  "
+            
+            string+="\n"
+            string+=3*offset*" "
+
+            for col in range(self.width):
+                label = self.hexes_to_labels[row][col]
+                if label>0: string += ("("+ str(label) +")" if label > 0 else "   ") + "  "
+            string+=2*"\n"
+        return string

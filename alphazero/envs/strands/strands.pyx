@@ -45,7 +45,8 @@ class Game(GameState):
 
     def __hash__(self):
         return hash(self._board.hexes.tobytes() + bytes([self._turns]) + bytes([self._player]))
-
+    def __str__(self):
+        return (f"Turn: {self._turns}, Player: {self.player}, \n" + str(self._board) + "\n")
     def __eq__(self, other):
         return (self._player == other._player
                 and self._turns == other._turns
@@ -184,24 +185,3 @@ class Game(GameState):
         data.append((new_state, new_pi))
 
         return data
-
-    def valid_mutations(self, sequence):
-        gs = self.clone()
-        horizon = len(sequence)
-        valids = np.zeros((horizon, gs.action_size()), dtype = np.float32)
-
-        for tau in range(horizon):
-            hexes = np.asarray(self._board.hexes)
-            valids[tau] = np.where(hexes == 0, 1, 0)
-            a = sequence[tau]
-            valids[tau,a] = False
-            gs.play_action(a)
-        
-        return valids
-
-    def mutate(self, sequence, m: Mutation):
-        if sequence[m.tau] == m.a:
-            return sequence
-        else:
-            sequence[m.tau] = m.a
-            return sequence
