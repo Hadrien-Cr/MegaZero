@@ -5,28 +5,28 @@ from torch import multiprocessing as mp
 from alphazero.Coach import Coach, get_args
 from alphazero.NNetWrapper import NNetWrapper as nn
 from alphazero.envs.connect4.connect4 import Game
-from alphazero.GenericPlayers import RawMCTSPlayer
-from alphazero.envs.connect4.players import OneStepLookaheadConnect4Player
+from alphazero.GenericPlayers import RawMCTSPlayer, RawOSLA
 from alphazero.utils import dotdict
 
 args = get_args(dotdict({
     'run_name': 'connect4_fpu',
-    'macro_act': False,
-    'baselineTester': OneStepLookaheadConnect4Player,
+    'emcts_horizon': 4,
+    'emcts_bb_phases': 5,
+    'self_play_mode': 'mcts', #'emcts', 'mcts',
+    'self_play_strategy': 'vanilla', #'bridge-burning','mode'
+    'baselineTester': RawOSLA,
     'workers': mp.cpu_count(),
     'startIter': 1,
     'numIters': 1000,
     'numWarmupIters': 1,
-    'process_batch_size': 512,
+    'process_batch_size': 128,
     'train_batch_size': 1024,
     # should preferably be a multiple of process_batch_size and workers
-    'gamesPerIteration': 512 * mp.cpu_count(),
+    'gamesPerIteration': 128*mp.cpu_count(),
     'symmetricSamples': True,
     'skipSelfPlayIters': None,
     'selfPlayModelIter': None,
-    'numMCTSSims': 100,
-    'numFastSims': 100,
-    'probFastSim': 0.75,
+    'numMCTSSims': 500,
     'compareWithBaseline': True,
     'arenaCompareBaseline': 128,
     'arenaCompare': 128,
@@ -46,7 +46,7 @@ args = get_args(dotdict({
 
     lr=0.01,
     num_channels=128,
-    depth=8,
+    depth=4,
     value_head_channels=32,
     policy_head_channels=32,
     value_dense_layers=[1024, 256],

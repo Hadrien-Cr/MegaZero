@@ -152,7 +152,7 @@ class MCTSPlayer(BasePlayer):
                 self.mcts.search(state, self.nn, self.args.numMCTSSims/state.avg_atomic_actions(), self.args.add_root_noise, self.args.add_root_temp)
                 if not self.mcts.turn_completed: self.mcts.update_turn(state, self.temp)
 
-        turn, policy = self.mcts.get_results()
+        turn, pi, state_history = self.mcts.get_results(state)
         return turn
     
     def process(self, *args, **kwargs):
@@ -207,7 +207,7 @@ class EMCTSPlayer(BasePlayer):
                 self.emcts.search(state, self.nn, self.args.numMCTSSims/self.args.emcts_bb_phases, self.args.add_root_noise, self.args.add_root_temp)
                 self.emcts.update_turn(state, self.temp)
 
-        turn, policy = self.emcts.get_results()
+        turn, pi, state_history = self.emcts.get_results(state)
         return turn
     
     def process(self, *args, **kwargs):
@@ -248,7 +248,7 @@ class RawMCTSPlayer(MCTSPlayer):
                 self.mcts.raw_search(state, self.args.numMCTSSims/state.avg_atomic_actions(), self.args.add_root_noise, self.args.add_root_temp)
                 if not self.mcts.turn_completed: self.mcts.update_turn(state, self.temp)
         
-        turn, policy = self.mcts.get_results()
+        turn, pi, state_history = self.mcts.get_results(state)
         return turn
     
     def process(self, batch: torch.Tensor):
@@ -296,7 +296,7 @@ class RawEMCTSPlayer(MCTSPlayer):
                 self.emcts.raw_search(state, self.args.numMCTSSims/self.args.emcts_bb_phases, self.args.add_root_noise, self.args.add_root_temp)
                 self.emcts.update_turn(state, self.temp)
 
-        turn, policy = self.emcts.get_results()
+        turn, pi, state_history = self.emcts.get_results(state)
         return turn
 
     def process(self, batch: torch.Tensor):

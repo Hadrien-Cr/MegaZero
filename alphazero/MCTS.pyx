@@ -129,6 +129,7 @@ cdef class MCTS:
     cdef public list _path
     cdef public list policy_history
     cdef public list action_history
+    cdef public list state_history
     cdef public bint turn_completed
     cdef public int depth
     cdef public int max_depth
@@ -145,6 +146,7 @@ cdef class MCTS:
         self._curnode = self._root
         self.policy_history = []
         self.action_history = []
+        self.state_history = []
         self.turn_completed = False
         self._path = []
         self.depth = 0
@@ -164,6 +166,7 @@ cdef class MCTS:
         self._path = []
         self.policy_history = []
         self.action_history = []
+        self.state_history = []
         self.turn_completed = False
         self.depth = 0
         self.max_depth = 0
@@ -196,9 +199,10 @@ cdef class MCTS:
                 break
             self.process_results(leaf, v, p, add_root_noise, add_root_temp)
 
-    def get_results(self):
+    def get_results(self, object gs):
         assert len(self.action_history) == len(self.policy_history)
-        return self.action_history , self.policy_history
+        assert len(self.action_history) == len(self.state_history)
+        return self.action_history , self.policy_history, self.state_history
     
     cpdef object find_leaf(self, object gs):
         self.depth = 0
@@ -234,6 +238,7 @@ cdef class MCTS:
                 self._root = c
                 break
         self.action_history.append(a)
+        self.state_history.append(gs.clone())
         player = gs._player
         gs.play_action(a)
         if player != gs.player or gs.win_state().any():

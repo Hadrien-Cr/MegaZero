@@ -175,6 +175,7 @@ cdef class EMCTS:
     cdef public np.ndarray policy_history
     cdef public list action_history
     cdef public list player_history
+    cdef public list state_history
     cdef public np.ndarray mutate_prior
     cdef public int seq_length
 
@@ -198,6 +199,7 @@ cdef class EMCTS:
         self.policy_history = None # An array that stores the count of the mutations that have been made
         self.action_history = []  # Stores the best sequence found
         self.player_history = []
+        self.state_history = []
         self.seq_length = args.emcts_horizon
 
         self.depth = 0
@@ -219,6 +221,7 @@ cdef class EMCTS:
         self.policy_history = None  # An array that stores the count of the mutations that have been made
         self.action_history = []
         self.player_history = []
+        self.state_history = []
         self.mutate_prior = None # An array that gives the prior probability mutate_prior[t,a] to mutate the t-th to action a 
         
         self.depth = 0
@@ -250,14 +253,17 @@ cdef class EMCTS:
             leaf = self.find_leaf(gs)
             self.process_results(leaf, v, p, add_root_noise, add_root_temp)
     
-    def get_results(self):
-        self.action_history = list(filter(lambda a: a!=PAD, self.action_history))
-        cdef int l = len(self.action_history)
-        cdef int t
-        cdef np.ndarray pi = np.zeros((l, len(self.policy_history[0])), dtype = np.float32)
-        for t in range(l):
-            pi[t] = self.policy_history[t]/np.sum(self.policy_history[t])
-        return self.action_history , pi
+    def get_results(self, object gs):
+        state_history = []
+        action_history = []
+        player = gs._player
+
+        for t, a in enumerate(self._root.seq):
+            self.policy_history[t] = self.policy_history[t]/np.sum(self.policy_history[t])
+            gs.play_action(a)
+            if gs._player != player or gs.win_state().any():
+                break 
+        return action_history, self.policy_history[0:len(action_history)], state_history
 
     cpdef object find_leaf(self, object gs):
         """
@@ -300,15 +306,15 @@ cdef class EMCTS:
                 valids = self._curnode.mutate_and_play(state = leaf, 
                                                         m = self._curnode.m, 
                                                         repair_prior = self.mutate_prior)
-                self.action_history = self._curnode.seq[0:gs.d]
                 self._curnode.e = leaf.win_state()
                 self._curnode.add_children( valid_mutations = valids, 
                                             mutate_prior = self.mutate_prior,
                                             num_players = self._num_players,
                                             player_history = self.player_history)
-            
+
             if self.depth == 1 and not self._curnode.e.any() and self._root.e.any():
                 self.update_turn(gs, self._curnode.m)
+
         return(leaf)
 
 
@@ -466,14 +472,8 @@ cdef class EMCTS:
         cdef float fpu_value = self._root.v - 0 * sqrt(seen_policy)
         cdef float cur_best = -float('inf')
         cdef float sqrt_n = sqrt(self._root.n)
-        #p = False
-        #for c in self._root._children:
-        #    if c.e.any(): p = True
-        #if p: print('-'*100)
+
         for c in self._root._children:
-            #if p: 
-            #    print(c.m == m,c.e, c.n, c.v, c.q, c.e[self._root.player])
-            #    assert c.m != m or c.e[self._root.player]
             if c.m == m:
                 self._root = c
                 return

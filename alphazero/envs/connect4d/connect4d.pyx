@@ -25,9 +25,9 @@ class Game(GameState):
     @staticmethod
     def _get_board():
         return Board(height = DEFAULT_HEIGHT, 
-                              width = DEFAULT_WIDTH, 
-                              win_length = DEFAULT_WIN_LENGTH, 
-                              num_boards = NUM_BOARDS)
+                    width = DEFAULT_WIDTH, 
+                    win_length = DEFAULT_WIN_LENGTH, 
+                    num_boards = NUM_BOARDS)
 
     def __hash__(self) -> int:
         return hash(self._board.pieces.tobytes() + bytes([self._turns, self._player, self.winner]))
@@ -35,9 +35,7 @@ class Game(GameState):
     def __eq__(self, other: 'Game') -> bool:
         return (self._player == other._player 
                 and self._turns == other._turns 
-                and self._board.winner == other._board.winner
-                and self.micro_step == other.micro_step 
-                and np.array_equal(self._board.pieces, other._board.pieces))
+                and self._board == other._board)
 
 
     def clone(self) -> 'Game':

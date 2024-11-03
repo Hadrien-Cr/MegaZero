@@ -1,4 +1,5 @@
 alphazero/__pycache__
+alphazero/envs/__pycache__
 alphazero/pytorch_classification/__pycache__
 alphazero/pytorch_classification/utils/__pycache__
 AlphaZeroGUI/__pycache__

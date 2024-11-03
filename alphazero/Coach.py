@@ -232,7 +232,7 @@ class Coach:
         print('------------------')
         print('Because of batching, it can take a long time before any games finish.')
         print('------------------')
-        print("Using search strategy",  self.args.self_play_strategy, "and n_sims =", self.args.numMCTSSims) 
+        print("Using search mode",  self.args.self_play_mode,"and search strategy",  self.args.self_play_strategy, "and n_sims =", self.args.numMCTSSims) 
         try:
 
             while self.model_iter <= self.args.numIters:
@@ -543,17 +543,12 @@ class Coach:
         #         self.args.arenaMCTS = True
         #         print('WARNING: Batched arena comparison is enabled which uses MCTS, but arena MCTS is set to False.'
         #                           ' Ignoring this, and continuing with batched MCTS in arena.')
-
-        #     nplayer = self.train_net.process
-        #     pplayer = self.self_play_net.process
-        # else:
-        #     cls = MCTSPlayer if self.args.arenaMCTS else NNPlayer
-        #     nplayer = cls(self.game_cls, self.args, self.train_net)
-        #     pplayer = cls(self.game_cls, self.args, self.self_play_net)
-        cls = MCTSPlayer if self.args.arenaMCTS else NNPlayer
-        nplayer = cls(self.train_net, self.game_cls, self.args)
-        pplayer = cls(self.self_play_net, self.game_cls, self.args)
-
+        if self.args.arenaMCTS:
+            nplayer = MCTSPlayer(self.args.self_play_strategy, self.train_net, self.game_cls, self.args)
+            pplayer = MCTSPlayer(self.args.self_play_strategy, self.self_play_net, self.game_cls, self.args)
+        else:
+            nplayer = NNPlayer(self.train_net, self.game_cls, self.args)
+            pplayer = NNPlayer(self.self_play_net, self.game_cls, self.args)            
         players = [nplayer] + [pplayer] * (self.game_cls.num_players() - 1)
         self.arena = Arena(players, self.game_cls, use_batched_mcts=self.args.arenaBatched, args=self.args)
         wins, draws, winrates = self.arena.play_games(self.args.arenaCompare)
@@ -584,8 +579,11 @@ class Coach:
     def compareToBaseline(self, iteration):
         test_player = self.args.baselineTester(self.game_cls, self.args)
         can_process = test_player.supports_process() and self.args.arenaBatched
-        nnplayer = (MCTSPlayer if self.args.arenaMCTS else NNPlayer)(self.train_net, self.game_cls, self.args)
-
+        if self.args.arenaMCTS:
+            nnplayer = MCTSPlayer(self.args.self_play_strategy, self.train_net, self.game_cls, self.args)
+        else:
+            nnplayer = NNPlayer(self.train_net, self.game_cls, self.args)
+        print('using batched MCTS' if can_process else 'not batched MCTS')
         print('PITTING AGAINST BASELINE: ' + self.args.baselineTester.__name__)
 
         players = [nnplayer] + [test_player] * (self.game_cls.num_players() - 1)

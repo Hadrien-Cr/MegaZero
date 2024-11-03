@@ -32,6 +32,9 @@ cdef class Board():
 
     def __getstate__(self):
         return self.height, self.width, self.win_length, np.asarray(self.pieces)
+    
+    def __eq__(self, other):
+        return (np.array_equal(self.pieces, other.pieces))
 
     def __setstate__(self, state):
         self.height, self.width, self.win_length, pieces = state

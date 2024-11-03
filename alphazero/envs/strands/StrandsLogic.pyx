@@ -43,18 +43,24 @@ cdef class Board:
     def __getstate__(self):
         return self.digit_chosen, self.rest, np.asarray(self.hexes_available), np.asarray(self.hexes)
     
+    def __eq__(self, other):
+        return (self.digit_chosen == other.digit_chosen \
+                and self.rest == other.rest \
+                and np.array_equal(self.hexes_available, other.hexes_available) \
+                and np.array_equal(self.hexes, other.hexes) )
+    
     def __setstate__(self, state):
         self.digit_chosen, self.rest, hexes_available, hexes = state
         self.hexes = np.asarray(hexes)
         self.hexes_available = np.asarray(hexes_available)
 
     def add_tile(self, int x, int y, int target):
-        assert self.hexes_to_labels[x][y]>0, f"Hex {x,y} is out of valid bounds"
+        assert self.hexes_to_labels[x][y]>0, f"Hex {x,y} is out of valid bounds {self}"
         assert self.hexes[x,y] == 0, f"Hex {x,y} already taken {self}"
         if self.digit_chosen == 0:
             assert self.hexes_available[self.hexes_to_labels[x][y]]>0, f"No hexes available for digit {self.hexes_to_labels[x][y]} {self}"
             self.update_digit_chosen(self.hexes_to_labels[x][y])
-        assert self.hexes_to_labels[x][y] == self.digit_chosen
+        assert self.hexes_to_labels[x][y] == self.digit_chosen, f"Hex {x,y} {self}"
 
         self.hexes[x,y] = target
         self.rest -= 1

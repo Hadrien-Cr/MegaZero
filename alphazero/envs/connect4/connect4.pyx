@@ -26,10 +26,12 @@ class Game(GameState):
         return Board(DEFAULT_HEIGHT, DEFAULT_WIDTH, DEFAULT_WIN_LENGTH)
 
     def __hash__(self) -> int:
-        return hash(self._board.pieces.tobytes() + bytes([self.turns]) + bytes([self._player]))
+        return hash(self._board.pieces.tobytes() + bytes([self.turns, self._player]))
 
     def __eq__(self, other: 'Game') -> bool:
-        return np.array_equal(self._board.pieces,other._board.pieces) and self._player == other._player and self.turns == other.turns
+        return (self._player == other._player 
+                and self._turns == other._turns 
+                and self._board == other._board)
 
     def clone(self) -> 'Game':
         game = Game()

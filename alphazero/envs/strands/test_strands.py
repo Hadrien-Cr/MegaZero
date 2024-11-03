@@ -74,10 +74,10 @@ def test_simple_moves():
 
 # Test 2: Overlapping Tiles and catching an error
 def test_overlap_tiles():
-    game = init_board_from_moves([4*rules_strands['DEFAULT_WIDTH'] + 5, 
+    game = init_board_from_moves([4*rules_strands['DEFAULT_WIDTH'] + 3, 
                                   4*rules_strands['DEFAULT_WIDTH'] + 4,])
 
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         game.play_action(4*rules_strands['DEFAULT_WIDTH'] + 4)  # Should raise error when overlap
 
 # Test 3: Valid moves
@@ -244,7 +244,7 @@ def test_immutable_move():
     assert np.array_equal(clone_game._board.rest, game._board.rest) 
     assert np.array_equal(clone_game._board.hexes_available, game._board.hexes_available)
 
-    game.play_action(4*rules_strands['DEFAULT_WIDTH'] + 5)
+    game.play_action(4*rules_strands['DEFAULT_WIDTH'] + 3)
 
     assert not game.__eq__(clone_game)
     assert np.array_equal(clone_game._board.hexes, game._board.hexes) == False  # Board should have changed

@@ -155,7 +155,7 @@ def test_agent():
                     RawMCTSPlayer(strategy, Game, args),
                     RandomPlayer(Game),
                 ]
-        for _ in range(0):
+        for _ in range(5):
             shuffle(agents)
             players = [agents[0], agents[1]]
             print(players[0].__class__.__name__, "vs", players[1].__class__.__name__)
