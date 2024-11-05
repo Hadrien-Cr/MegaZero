@@ -114,7 +114,8 @@ class MCTSPlayer(BasePlayer):
         self.average_value = average_value
         self.draw_mcts = draw_mcts
         self.draw_depth = draw_depth
-        self.reset()
+        self.mcts = MCTS(self.args)
+
         if self.verbose:
             self.mcts.search(
                 self.game_cls(), self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp
@@ -131,11 +132,8 @@ class MCTSPlayer(BasePlayer):
     def requires_model() -> bool:
         return False
 
-    def update(self, state: GameState, action: int) -> None:
-        self.mcts.update_root(state, action)
-
     def reset(self):
-        self.mcts = MCTS(self.args)
+        self.mcts.reset()
 
     def play(self, state) -> int:
         self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
@@ -176,7 +174,7 @@ class EMCTSPlayer(BasePlayer):
         self.average_value = average_value
         self.draw_mcts = draw_mcts
         self.draw_depth = draw_depth
-        self.reset()
+        self.emcts = EMCTS(self.args)
 
     @staticmethod
     def supports_process() -> bool:
@@ -186,11 +184,8 @@ class EMCTSPlayer(BasePlayer):
     def requires_model() -> bool:
         return True
 
-    def update(self, state: GameState, action: int) -> None:
-        self.emcts.update_root(state, action)
-
     def reset(self):
-        self.emcts = EMCTS(self.args)
+        self.emcts.reset()
 
     def play(self, state) -> int:
         self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
@@ -198,15 +193,18 @@ class EMCTSPlayer(BasePlayer):
         if self.strategy == "vanilla":
             self.reset()
             self.emcts.search(state, self.nn, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
-            for _ in range(self.args.emcts_bb_phases):
+            assert not self.emcts.turn_completed, self.phase
+            while not self.emcts.turn_completed:
                 self.emcts.update_turn(state, self.temp)
 
         elif self.strategy == "bridge-burning":
             self.reset()
             for _ in range(self.args.emcts_bb_phases):
                 self.emcts.search(state, self.nn, self.args.numMCTSSims/self.args.emcts_bb_phases, self.args.add_root_noise, self.args.add_root_temp)
-                self.emcts.update_turn(state, self.temp)
-
+                if not self.emcts.turn_completed: self.emcts.update_turn(state, self.temp)
+        else:
+            raise ValueError
+        
         turn, pi, state_history = self.emcts.get_results(state)
         return turn
     
@@ -279,22 +277,19 @@ class RawEMCTSPlayer(MCTSPlayer):
     def update(self, state: GameState, action: int) -> None:
         self.emcts.update_root(state, action)
 
-    def reset(self):
-        self.emcts = EMCTS(self.args)
-
     def play(self, state) -> int:
         self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
         if self.strategy == "vanilla":
             self.reset()
             self.emcts.raw_search(state, self.args.numMCTSSims, self.args.add_root_noise, self.args.add_root_temp)
-            for _ in range(self.args.emcts_bb_phases):
+            while not self.emcts.turn_completed:
                 self.emcts.update_turn(state, self.temp)
 
         elif self.strategy == "bridge-burning":
             self.reset()
             for _ in range(self.args.emcts_bb_phases):
                 self.emcts.raw_search(state, self.args.numMCTSSims/self.args.emcts_bb_phases, self.args.add_root_noise, self.args.add_root_temp)
-                self.emcts.update_turn(state, self.temp)
+                if not self.emcts.turn_completed: self.emcts.update_turn(state, self.temp)
 
         turn, pi, state_history = self.emcts.get_results(state)
         return turn

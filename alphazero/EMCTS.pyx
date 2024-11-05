@@ -13,7 +13,7 @@ import numpy as np
 cimport numpy as np
 from alphazero.utils import dotdict
 import copy
-
+import time
 DTYPE = np.float32
 ctypedef np.float32_t DTYPE_t
 
@@ -74,14 +74,14 @@ cdef class ENode:
 
         for tau in range(len(self.seq)):
             player = player_history[tau]
-            self._children.extend([ENode(seq = self.seq,
+            self._children.extend([ENode(seq = copy.deepcopy(self.seq),
                                         m = Mutation(tau,a), 
                                         num_players = num_players,
                                         p = mutate_prior[tau, a],
                                         player = player) 
                                     for a, valid in enumerate(valid_mutations[tau]) if valid])
         # shuffle children
-        # np.random.shuffle(self._children)
+        np.random.shuffle(self._children)
         assert len(self._children)>0 or self.e.any(),  f"No children has been created from non terminal node {self} with {np.sum(valid_mutations)} valid_mutations."
 
     cdef float uct(self, float sqrt_parent_n, float fpu_value, float cpuct):
@@ -105,48 +105,6 @@ cdef class ENode:
                 return c
         return child
 
-    cpdef np.ndarray mutate_and_play(self, object state, Mutation m, np.ndarray repair_prior):
-        '''
-        Returns valid_mutations
-        '''
-        cdef np.ndarray valids = np.zeros((len(self.seq), state.action_size()), dtype=np.float32)
-
-        for t in range(len(self.seq)):
-            if state.win_state().any(): 
-                break
-            if self.seq[t] == PAD:
-                pass
-            elif t == m.tau and (m.a) == PAD:
-                pass
-            elif t == m.tau:
-                try:
-                    state.play_action(m.a)
-                    self.seq[t] = (m.a)
-                except:
-                    try:
-                        state.play_action(self.seq[t])  
-                        valids[t] = state.valid_moves()
-                        valids[t, self.seq[t]] = 0  
-                    except:
-                        assert np.sum(repair_prior[t]*state.valid_moves())>0
-                        a = np.argmax(repair_prior[t]*state.valid_moves()).item()
-                        state.play_action(a)  
-                        self.seq[t] = a
-                valids[t] = state.valid_moves()
-                valids[t, self.seq[t]] = 0  
-            
-            else:
-                try:
-                    state.play_action(self.seq[t])  
-                except:
-                    assert np.sum(repair_prior[t]*state.valid_moves())>0, f"{state.valid_moves()},{repair_prior[t]}"
-                    a = np.argmax(repair_prior[t]*state.valid_moves()).item()
-                    state.play_action(a)  
-                    self.seq[t] = a
-                valids[t] = state.valid_moves()
-                valids[t, self.seq[t]] = 0  
-        
-        return valids        
 
 """
 def rebuild_mcts(num_players, cpuct, root, curnode, path):
@@ -178,7 +136,9 @@ cdef class EMCTS:
     cdef public list state_history
     cdef public np.ndarray mutate_prior
     cdef public int seq_length
-
+    cdef public int phase
+    cdef public bint turn_completed
+    cdef public int n_phases
     cdef public int depth
     cdef public int max_depth
     cdef public int _discount_max_depth
@@ -189,12 +149,16 @@ cdef class EMCTS:
         self.min_discount = args.min_discount
         self.fpu_reduction = args.fpu_reduction
         self.cpuct = args.cpuct
+        self.n_phases = args.emcts_bb_phases
 
         self._num_players = args._num_players
         self._root = ENode([], Mutation(-1,-1), self._num_players, p = 1, player = 0)
         self._curnode = self._root
         self._path = []
-        
+
+        self.phase = 0
+        self.turn_completed = False
+
         self.mutate_prior = None # An array that gives the prior probability mutate_prior[t,a] to mutate the t-th to action a 
         self.policy_history = None # An array that stores the count of the mutations that have been made
         self.action_history = []  # Stores the best sequence found
@@ -217,6 +181,9 @@ cdef class EMCTS:
         self._root = ENode([], Mutation(-1,-1), self._num_players, p = 1, player = 0)
         self._curnode = self._root
         self._path = []
+
+        self.phase = 0
+        self.turn_completed = False
 
         self.policy_history = None  # An array that stores the count of the mutations that have been made
         self.action_history = []
@@ -254,15 +221,20 @@ cdef class EMCTS:
             self.process_results(leaf, v, p, add_root_noise, add_root_temp)
     
     def get_results(self, object gs):
+
+        assert self.turn_completed, np.sum(self.policy_history) >0
         state_history = []
         action_history = []
         player = gs._player
-
         for t, a in enumerate(self._root.seq):
-            self.policy_history[t] = self.policy_history[t]/np.sum(self.policy_history[t])
+            assert a!= PAD, f"{t,a} {self._root.seq} {gs._player, player}"
             gs.play_action(a)
+            action_history.append(a)
+            assert np.sum(self.policy_history[t])>0, f"{t} {self._root.seq} {self.phase} {gs}"
+            self.policy_history[t] = self.policy_history[t]/np.sum(self.policy_history[t])
             if gs._player != player or gs.win_state().any():
                 break 
+
         return action_history, self.policy_history[0:len(action_history)], state_history
 
     cpdef object find_leaf(self, object gs):
@@ -283,18 +255,19 @@ cdef class EMCTS:
         self.depth = 0
         self._curnode = self._root
         cdef object leaf = gs.clone()
-        assert not gs.win_state().any(), "Impossible to call"
+        assert not gs.win_state().any(), "Impossible to call find_leaf on terminal node"
+
         # If the root sequence is not initialized
         if len(self._root.seq) < self.seq_length and not self._root.e.any():
             for a in self._root.seq:
                 assert not leaf.win_state().any()
                 if a!= PAD: leaf.play_action(a)
             self.action_history = self._curnode.seq[0:gs.d]
+
         # Else if the root sequence is initialized, look for mutations
         else:
             while self._curnode.n > 0 and not self._curnode.e.any():
                 self._path.append(self._curnode)
-                #assert len(self._curnode._children) > 0, self._curnode
                 self._curnode = self._curnode.best_child(self.fpu_reduction, self.cpuct)
                 self.depth += 1
 
@@ -303,9 +276,8 @@ cdef class EMCTS:
                 self._discount_max_depth = self.depth
             
             if self._curnode.n == 0:
-                valids = self._curnode.mutate_and_play(state = leaf, 
-                                                        m = self._curnode.m, 
-                                                        repair_prior = self.mutate_prior)
+                valids = self.mutate_and_play(state = leaf, 
+                                            node = self._curnode)
                 self._curnode.e = leaf.win_state()
                 self._curnode.add_children( valid_mutations = valids, 
                                             mutate_prior = self.mutate_prior,
@@ -317,12 +289,49 @@ cdef class EMCTS:
 
         return(leaf)
 
+    cpdef np.ndarray mutate_and_play(self, object state, ENode node):
+        '''
+        Returns valid_mutations
+        '''
+        assert node.n == 0
+        cdef np.ndarray valids = np.zeros((len(node.seq), state.action_size()), dtype=np.float32)
+        player = state._player
+        t, streak = 0, 0
+
+        while t < len(node.seq):
+            if state.win_state().any(): 
+                valid_moves = state.valid_moves()
+                valids[t] = valid_moves
+                break
+            else:
+                a = node.m.a if (t == node.m.tau and node.m.a != PAD) else node.seq[t]
+                valid_moves = state.valid_moves()
+                
+                if valid_moves[a]:
+                    valids[t] = valid_moves
+                    valids[t, a] = 0 
+                    state.play_action(a)  
+                else:
+                    a = np.argmax(self.mutate_prior[t]*state.valid_moves()).item()
+                    valids[t] = valid_moves
+                    valids[t, a] = 0 
+                    state.play_action(a)  
+                    self.policy_history[t, a] +=1
+                node.seq[t] = a
+                
+            t, streak = t+1, streak+1
+            if player != state._player:
+                node.seq[t:(t + state.d - streak + 1)] = [PAD] * (state.d - streak)
+                t, streak = t + state.d - streak, 0
+                player = state._player
+        return valids        
 
     cpdef void process_results_from_init(self, object gs, float[:] value, float[:] pi, bint add_root_noise, bint add_root_temp):
         """
         Should be called at very beginning of the search, when the root sequence is not completed
         pi should help store the self.mutate_prior, which will be shared for all nodes.
         """
+        
         if self.mutate_prior is None:
             self.mutate_prior = np.zeros((self.seq_length, gs.action_size()), dtype=np.float32)
         
@@ -362,8 +371,11 @@ cdef class EMCTS:
         self._root.e = gs.win_state()
 
     cpdef void pad_histories(self, int pad, int player):
-        self.player_history += [player for _ in range(pad)]
-        self._root.seq += [PAD for _ in range(pad)]
+        n = len(self._root.seq)
+        for t in range(n,n+pad):
+            self.player_history.append(player)
+            self._root.seq.append(PAD)
+            self.mutate_prior[t] = self.mutate_prior[n-1]
 
 
     cpdef void process_results_from_mutations(self, object gs, float[:] value, float[:] pi, bint add_root_noise, bint add_root_temp):
@@ -401,10 +413,10 @@ cdef class EMCTS:
             if self._curnode.n == 0:
                 self._curnode.v = self._get_value(value, self._curnode.player, num_players)  # * 2 - 1
             self._curnode.n += 1
-            
+
             m = self._curnode.m
             if m.tau <gs.d: self.policy_history[m.tau, m.a] += 1
-            
+
             self._curnode = parent
             i += 1
 
@@ -471,8 +483,7 @@ cdef class EMCTS:
         cdef float seen_policy = sum([c.p for c in self._root._children if c.n > 0])
         cdef float fpu_value = self._root.v - 0 * sqrt(seen_policy)
         cdef float cur_best = -float('inf')
-        cdef float sqrt_n = sqrt(self._root.n)
-
+        cdef float sqrt_n = sqrt(self._root.n) 
         for c in self._root._children:
             if c.m == m:
                 self._root = c
@@ -480,6 +491,11 @@ cdef class EMCTS:
         raise ValueError, "Invalid mutation selected"
 
     cpdef void update_turn(self, object gs, float temp):
+        assert self.phase <self.n_phases, "All phases are done"
+        self.phase += 1
+
+        if self.phase >= self.n_phases:
+            self.turn_completed = True
         if len(self._root._children)>0 and np.sum(self.counts(gs))>0:
             # draw the best mutation found
             policy_of_mut = self.probs(gs, temp)

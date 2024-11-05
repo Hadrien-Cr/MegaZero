@@ -199,6 +199,7 @@ class Arena:
         end = time.time()
         self.__reset_stats()
 
+        ############### Batched MCTS  ###############
         if self.use_batched_mcts:
             # TODO: fix batched arena possibly taking up to ~10x longer than normal self play
             self.__check_players_valid()
@@ -321,6 +322,7 @@ class Arena:
                 del value_tensors[0]
                 del batch_ready[0]
 
+        ############### Not Batched MCTS  ###############
         else:
             players = list(range(self.game_cls.num_players()))
             def get_player_order():
