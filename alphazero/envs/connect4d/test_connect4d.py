@@ -148,7 +148,7 @@ def test_agent():
     args['arena_batch_size'] = 1
     args['arenaTemp'] = 0
 
-    for strategy in [ "bridge-burning","vanilla",]:
+    for strategy in ["vanilla", "bridge-burning"]:
         agents = [
                     RawOSLA(Game, args),
                     RawEMCTSPlayer(strategy, Game, args),

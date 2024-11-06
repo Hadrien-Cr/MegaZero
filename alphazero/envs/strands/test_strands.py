@@ -285,7 +285,7 @@ def test_agent():
     import alphazero.Coach as c
     from random import shuffle
     args =  c.get_args(args)
-    args['emcts_horizon'] = 6
+    args['emcts_horizon'] = 12
     args['_num_players'] = 2
     args['numMCTSSims'] = 1000
     args['arenaCompareBaseline'] = 10
@@ -297,8 +297,8 @@ def test_agent():
     for strategy in ["vanilla", "bridge-burning"]:
         agents = [
                     StrandsHeuristicEMCTS(strategy, Game, args),
-                    #StrandsHeuristicMCTS(strategy, Game, args),
-                    #StrandsHeuristicOSLA(strategy, Game, args),
+                    StrandsHeuristicMCTS(strategy, Game, args),
+                    StrandsHeuristicOSLA(strategy, Game, args),
                     RandomPlayer(Game),
                 ]
         for _ in range(5):
@@ -309,5 +309,4 @@ def test_agent():
             arena.play_games(args.arenaCompare)
 
 if __name__ == '__main__':
-    test_agent()
     pytest.main()

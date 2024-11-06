@@ -257,7 +257,7 @@ class RawMCTSPlayer(MCTSPlayer):
 
 ############### RawEMCTSPlayer ####################
 
-class RawEMCTSPlayer(MCTSPlayer):
+class RawEMCTSPlayer(EMCTSPlayer):
     def __init__(self, strategy = "vanilla", *args, **kwargs):
         super().__init__(strategy, None, *args, **kwargs)
         self.strategy = strategy

@@ -70,7 +70,7 @@ cdef class ENode:
         Adds mutated childrens by providing an array valid_mutations[t,a] of the mutation that can be performed and the mutate_prior[t,a] array
         """
         cdef int tau, a, player
-        assert len(self._children) == 0
+        assert len(self._children) == 0, f"{self}{len(self._children)}{np.sum(valid_mutations)}"
 
         for tau in range(len(self.seq)):
             player = player_history[tau]
@@ -199,6 +199,7 @@ cdef class EMCTS:
     #   return rebuild_mcts, (self._root._players, self.cpuct, self._root, self._curnode, self._path)
 
     cpdef void search(self, object gs, object nn, int sims, bint add_root_noise, bint add_root_temp):
+        assert (self.seq_length%gs.d) == 0
         cdef float[:] v
         cdef float[:] p
         self.max_depth = 0
@@ -210,6 +211,7 @@ cdef class EMCTS:
             self.process_results(leaf, v, p, add_root_noise, add_root_temp)
 
     cpdef void raw_search(self, object gs, int sims, bint add_root_noise, bint add_root_temp):
+        assert (self.seq_length%gs.d) == 0
         cdef Py_ssize_t policy_size = gs.action_size()
         cdef float[:] v = np.zeros(gs.num_players() + 1, dtype=np.float32)  #np.full((value_size,), 1 / value_size, dtype=np.float32)
         cdef float[:] p = np.full(policy_size, 1, dtype=np.float32)
@@ -296,7 +298,7 @@ cdef class EMCTS:
         assert node.n == 0
         cdef np.ndarray valids = np.zeros((len(node.seq), state.action_size()), dtype=np.float32)
         player = state._player
-        t, streak = 0, 0
+        t = 0
 
         while t < len(node.seq):
             if state.win_state().any(): 
@@ -318,11 +320,12 @@ cdef class EMCTS:
                     state.play_action(a)  
                     self.policy_history[t, a] +=1
                 node.seq[t] = a
-                
-            t, streak = t+1, streak+1
+            t+=1
+            # pad when the end of turn is reached
             if player != state._player:
-                node.seq[t:(t + state.d - streak + 1)] = [PAD] * (state.d - streak)
-                t, streak = t + state.d - streak, 0
+                while (t%state.d) != 0:
+                    node.seq[t] = PAD
+                    t+=1
                 player = state._player
         return valids        
 
@@ -336,7 +339,7 @@ cdef class EMCTS:
             self.mutate_prior = np.zeros((self.seq_length, gs.action_size()), dtype=np.float32)
         
         if self.policy_history is None:
-            self.policy_history = np.zeros((gs.d, gs.action_size()), dtype=np.int64)
+            self.policy_history = np.zeros((self.seq_length, gs.action_size()), dtype=np.int64)
         
         assert self._curnode == self._root
 
