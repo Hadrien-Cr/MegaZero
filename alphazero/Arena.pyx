@@ -227,7 +227,7 @@ class Arena:
             # self.args.expertValueWeight.current = self.args.expertValueWeight.start
             # if self.args.workers >= mp.cpu_count():
             #    self.args.workers = mp.cpu_count() - 1
-
+            arena_configurations = [(player.mode, player.strategy) for player in self.players]
             for i in range(self.args.workers):
                 input_tensors = [[] for _ in range(self.game_cls.num_players())]
                 batch_queues.append(mp.Queue())
@@ -246,7 +246,7 @@ class Arena:
                     value_tensors[i].pin_memory()
 
                 self._agents.append(
-                    SelfPlayAgent(i, self.game_cls, ready_queue, batch_ready[i],
+                    SelfPlayAgent(i, self.game_cls, arena_configurations, ready_queue, batch_ready[i],
                                   input_tensors, policy_tensors[i], value_tensors[i], batch_queues[i],
                                   result_queue, completed, games_played, self.stop_event, self.pause_event, self.args,
                                   _is_arena=True))

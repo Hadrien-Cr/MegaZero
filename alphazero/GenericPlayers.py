@@ -126,7 +126,7 @@ class MCTSPlayer(BasePlayer):
 
     @staticmethod
     def supports_process() -> bool:
-        return False
+        return True
 
     @staticmethod
     def requires_model() -> bool:
@@ -223,9 +223,6 @@ class RawMCTSPlayer(MCTSPlayer):
         self._POLICY_SIZE = self.game_cls.action_size()
         self._POLICY_FILL_VALUE = 1 / self._POLICY_SIZE
         self._VALUE_SIZE = self.game_cls.num_players() + 1
-    @staticmethod
-    def supports_process() -> bool:
-        return True
 
     @staticmethod
     def requires_model() -> bool:
@@ -266,9 +263,6 @@ class RawEMCTSPlayer(EMCTSPlayer):
         self._POLICY_SIZE = self.game_cls.action_size()
         self._POLICY_FILL_VALUE = 1 / self._POLICY_SIZE
         self._VALUE_SIZE = self.game_cls.num_players() + 1
-    @staticmethod
-    def supports_process() -> bool:
-        return False
 
     @staticmethod
     def requires_model() -> bool:

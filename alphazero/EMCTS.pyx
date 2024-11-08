@@ -70,7 +70,7 @@ cdef class ENode:
         Adds mutated childrens by providing an array valid_mutations[t,a] of the mutation that can be performed and the mutate_prior[t,a] array
         """
         cdef int tau, a, player
-        assert len(self._children) == 0, f"{self}{len(self._children)}{np.sum(valid_mutations)}"
+        assert len(self._children) == 0, f"{self}{self._children}"
 
         for tau in range(len(self.seq)):
             player = player_history[tau]
@@ -131,7 +131,6 @@ cdef class EMCTS:
     cdef public list _path
 
     cdef public np.ndarray policy_history
-    cdef public list action_history
     cdef public list player_history
     cdef public list state_history
     cdef public np.ndarray mutate_prior
@@ -161,7 +160,6 @@ cdef class EMCTS:
 
         self.mutate_prior = None # An array that gives the prior probability mutate_prior[t,a] to mutate the t-th to action a 
         self.policy_history = None # An array that stores the count of the mutations that have been made
-        self.action_history = []  # Stores the best sequence found
         self.player_history = []
         self.state_history = []
         self.seq_length = args.emcts_horizon
@@ -171,7 +169,7 @@ cdef class EMCTS:
         self._discount_max_depth = 0
 
     def __repr__(self):
-        return 'MCTS(root_noise_frac={}, root_temp={}, min_discount={}, fpu_reduction={}, cpuct={}, _num_players={}, ' \
+        return 'EMCTS(root_noise_frac={}, root_temp={}, min_discount={}, fpu_reduction={}, cpuct={}, _num_players={}, ' \
                '_root={}, _curnode={}, _path={}, depth={}, max_depth={})' \
             .format(self.root_noise_frac, self.root_temp, self.min_discount,
                     self.fpu_reduction,self.cpuct, self._num_players, self._root,
@@ -186,7 +184,6 @@ cdef class EMCTS:
         self.turn_completed = False
 
         self.policy_history = None  # An array that stores the count of the mutations that have been made
-        self.action_history = []
         self.player_history = []
         self.state_history = []
         self.mutate_prior = None # An array that gives the prior probability mutate_prior[t,a] to mutate the t-th to action a 
@@ -204,6 +201,7 @@ cdef class EMCTS:
         cdef float[:] p
         self.max_depth = 0
         assert not gs.win_state().any()
+        assert gs.micro_step == 0
 
         for _ in range(sims):
             leaf = self.find_leaf(gs)
@@ -217,27 +215,29 @@ cdef class EMCTS:
         cdef float[:] p = np.full(policy_size, 1, dtype=np.float32)
         self.max_depth = 0
         assert not gs.win_state().any()
-
+        assert gs.micro_step == 0
+        
         for _ in range(sims):
             leaf = self.find_leaf(gs)
             self.process_results(leaf, v, p, add_root_noise, add_root_temp)
     
     def get_results(self, object gs):
 
-        assert self.turn_completed, np.sum(self.policy_history) >0
-        state_history = []
-        action_history = []
-        player = gs._player
-        for t, a in enumerate(self._root.seq):
-            assert a!= PAD, f"{t,a} {self._root.seq} {gs._player, player}"
-            gs.play_action(a)
-            action_history.append(a)
-            assert np.sum(self.policy_history[t])>0, f"{t} {self._root.seq} {self.phase} {gs}"
-            self.policy_history[t] = self.policy_history[t]/np.sum(self.policy_history[t])
-            if gs._player != player or gs.win_state().any():
-                break 
+        assert self.turn_completed
+        assert np.sum(self.policy_history)>0
 
-        return action_history, self.policy_history[0:len(action_history)], state_history
+        action_history, pi, state_history = [], [], []
+        
+        for t, a in enumerate(self._root.seq):
+            assert a!= PAD, f"{t,a} {self._root.seq}"
+            action_history.append(a)
+            state_history.append(gs.clone())
+            pi.append(self.policy_history[t]/np.sum(self.policy_history[t]))
+            gs.play_action(a)
+            if gs.micro_step == 0 or gs.win_state().any():
+                break 
+        assert gs.micro_step == 0 or gs.win_state().any()
+        return action_history, pi, state_history
 
     cpdef object find_leaf(self, object gs):
         """
@@ -258,13 +258,12 @@ cdef class EMCTS:
         self._curnode = self._root
         cdef object leaf = gs.clone()
         assert not gs.win_state().any(), "Impossible to call find_leaf on terminal node"
-
+        assert gs.micro_step == 0,  f"{self} {leaf} "
         # If the root sequence is not initialized
         if len(self._root.seq) < self.seq_length and not self._root.e.any():
             for a in self._root.seq:
-                assert not leaf.win_state().any()
+                assert not leaf.win_state().any(), f"{self} {leaf} {a}"
                 if a!= PAD: leaf.play_action(a)
-            self.action_history = self._curnode.seq[0:gs.d]
 
         # Else if the root sequence is initialized, look for mutations
         else:
@@ -319,22 +318,35 @@ cdef class EMCTS:
                     valids[t, a] = 0 
                     state.play_action(a)  
                     self.policy_history[t, a] +=1
+ 
                 node.seq[t] = a
             t+=1
             # pad when the end of turn is reached
-            if player != state._player:
+            if state.micro_step == 0:
                 while (t%state.d) != 0:
                     node.seq[t] = PAD
                     t+=1
                 player = state._player
         return valids        
+    
+    cpdef object reconstruct_leaf(self, gs):
+        
+        cdef object leaf = gs.clone()
+        
+        if len(self._root.seq) < self.seq_length and not self._root.e.any():
+            for a in self._root.seq:
+                assert not leaf.win_state().any(), f"{self} {leaf} {a}"
+                if a!= PAD: 
+                    leaf.play_action(a)
+        
+        return leaf
 
     cpdef void process_results_from_init(self, object gs, float[:] value, float[:] pi, bint add_root_noise, bint add_root_temp):
         """
         Should be called at very beginning of the search, when the root sequence is not completed
         pi should help store the self.mutate_prior, which will be shared for all nodes.
         """
-        
+
         if self.mutate_prior is None:
             self.mutate_prior = np.zeros((self.seq_length, gs.action_size()), dtype=np.float32)
         
@@ -346,6 +358,7 @@ cdef class EMCTS:
         tau = len(self._root.seq)
         a = self.osla_test(gs)
         self.mutate_prior[tau] = pi
+        
         if a == PAD: # no winning move found
             pi *= np.asarray(gs.valid_moves(), dtype=np.float32)
             # add root temperature
@@ -356,29 +369,23 @@ cdef class EMCTS:
                     
             a = np.random.choice(len(pi), p = pi/np.sum(pi))
         
-        if tau < gs.d: self.policy_history[tau,a] += 1
+        if tau < gs.d: 
+            self.policy_history[tau,a] += 1
         
         self._root.seq.append(a)
         self.player_history.append(gs._player)
-
-        player = gs._player
         gs.play_action(a)
 
-        if gs._player!= player:
+        if gs.micro_step == 0:
             # Pad the sequences at the of a turn so that a turn is always of length d
-            idx, streak  = len(self._root.seq) -1, 1
-            while idx>0 and self.player_history[idx-1] == player:
-                idx -= 1
-                streak += 1
-            self.pad_histories(gs.d - streak, player)
-        self._root.e = gs.win_state()
+            tau+=1
+            n = len(self._root.seq)
+            while tau%gs.d != 0 and tau<self.seq_length:
+                self.player_history.append(gs._player)
+                self._root.seq.append(PAD)
+                self.mutate_prior[tau] = self.mutate_prior[n-1]
 
-    cpdef void pad_histories(self, int pad, int player):
-        n = len(self._root.seq)
-        for t in range(n,n+pad):
-            self.player_history.append(player)
-            self._root.seq.append(PAD)
-            self.mutate_prior[t] = self.mutate_prior[n-1]
+        self._root.e = gs.win_state()
 
 
     cpdef void process_results_from_mutations(self, object gs, float[:] value, float[:] pi, bint add_root_noise, bint add_root_temp):
@@ -418,7 +425,8 @@ cdef class EMCTS:
             self._curnode.n += 1
 
             m = self._curnode.m
-            if m.tau <gs.d: self.policy_history[m.tau, m.a] += 1
+            if m.tau <gs.d: 
+                self.policy_history[m.tau, m.a] += 1
 
             self._curnode = parent
             i += 1

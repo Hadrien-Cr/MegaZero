@@ -22,7 +22,7 @@ class SelfPlayAgent(mp.Process):
                  value_tensor, output_queue, result_queue, complete_count, games_played,
                  stop_event: mp.Event, pause_event: mp.Event(), args, _is_arena=False, _is_warmup=False):
         super().__init__()
-        self.arena_configurations = arena_configurations # [{'mode': mode_p1, 'strategy': strategy_p1}, {'mode': mode_p2, 'strategy': strategy_p2}, ...] if arena else None
+        self.arena_configurations = arena_configurations # [(mode_p1, strategy_p1), (mode_p2, strategy_p2), ...] if arena else None
         self.id = id
         self.game_cls = game_cls
         self.ready_queue = ready_queue
@@ -41,6 +41,7 @@ class SelfPlayAgent(mp.Process):
         self.temps = []
         self.next_reset = []
         self.sims = []
+        self.gplayers = []
         self.mcts = []
         self.games_played = games_played
         self.complete_count = complete_count
@@ -67,7 +68,15 @@ class SelfPlayAgent(mp.Process):
             self.temps.append(self.args.startTemp)
             self.next_reset.append(0)
             self.sims.append(0)
+            self.gplayers.append(0) # represents who is playing on is currently playing on the game i
             self.mcts.append(self._get_mcts())
+    
+    def _get_mode_and_strategy(self, i: int):
+        if self._is_arena:
+            mode, strategy = self.arena_configurations[self.gplayers[i]]
+        else:
+            mode, strategy = self.args.self_play_mode, self.args.self_play_strategy
+        return(mode, strategy)
 
     def _get_mcts(self):
         if not self._is_arena:
@@ -81,18 +90,19 @@ class SelfPlayAgent(mp.Process):
         elif self._is_arena:
             mcts = []
             for player in range(self.game_cls.num_players()):
-                if self.arena_configurations[player]["mode"] =='mcts':
+                mode = self.arena_configurations[player][0]
+                if mode =='mcts':
                     mcts.append(MCTS(self.args))
-                elif self.arena_configurations[player]["mode"] =='emcts':
+                elif mode =='emcts':
                     mcts.append(EMCTS(self.args))
                 else:
-                    raise ValueError
+                    raise ValueError, f"Mode {mode} not in ['mcts','emcts']"
             return tuple(mcts)
 
     def _mcts(self, index: int) -> MCTS:
         mcts = self.mcts[index]
         if self._is_arena:
-            return mcts[self.games[index].player]
+            return mcts[self.gplayers[index]]
         else:
             return mcts
 
@@ -105,26 +115,14 @@ class SelfPlayAgent(mp.Process):
             np.random.seed()
             while not self.stop_event.is_set() and self.games_played.value < self.args.gamesPerIteration:
                 self._check_pause()
-                self.fast = np.random.random_sample() < self.args.probFastSim
-                sims = self.args.numFastSims if self.fast else self.args.numMCTSSims \
-                    if not self._is_warmup else self.args.numWarmupSims
-                
-                """
-                    for _ in range(sims):
-                        if self.stop_event.is_set(): break
-                        self.generateBatch()
-                        if self.stop_event.is_set(): break
-                        self.processBatch()
-                    if self.stop_event.is_set(): break
-                    self.playMoves()  
-                """
+
                 if self.stop_event.is_set(): break
                 self.generateBatch() # call find_leaf (selection and expansion), and create the batch of observations that should be processed by NN
                 if self.stop_event.is_set(): break
                 self.processBatch() # call process_results (backpropagation)
                 if self.stop_event.is_set(): break
-                self.updateTurn() # after a certain number of sims, update the turn: extend the sequence (mcts), or  mutate the sequence (emcts)
-                self.LogTurnToHistory() # after a certain number of sims, stop the search, log the state history and policy history
+                self.updateTurn() # after a certain number of sims, update the turn: extend the sequence (mcts), or mutate the sequence (emcts), and reset if the turn is completed
+                if self.stop_event.is_set(): break
                 self.processGameEnded()
     
             with self.complete_count.get_lock():
@@ -177,37 +175,44 @@ class SelfPlayAgent(mp.Process):
 
         for i in range(self.batch_size):
             self._check_pause()
+
+            mode, strategy = self._get_mode_and_strategy(i)
             index = self.batch_indices[i] if self._is_arena else i
-            self._mcts(i).process_results(
-                self.games[i],
-                self.value_tensor[index].data.numpy(),
-                self.policy_tensor[index].data.numpy(),
-                False if self._is_arena else self.args.add_root_noise,
-                False if self._is_arena else self.args.add_root_temp
-            )
+
+            if mode =='emcts': 
+                leaf = self._mcts(i).reconstruct_leaf(self.games[i])
+                self._mcts(i).process_results(
+                    leaf,
+                    self.value_tensor[index].data.numpy(),
+                    self.policy_tensor[index].data.numpy(),
+                    False if self._is_arena else self.args.add_root_noise,
+                    False if self._is_arena else self.args.add_root_temp
+                )
+            else:
+                self._mcts(i).process_results(
+                    self.games[i],
+                    self.value_tensor[index].data.numpy(),
+                    self.policy_tensor[index].data.numpy(),
+                    False if self._is_arena else self.args.add_root_noise,
+                    False if self._is_arena else self.args.add_root_temp
+                )
+
     def _sims_threshold(self, mode, strategy, game):
-        if not self._is_arena:
-            if mode == "mcts" and strategy == "vanilla":
-                return(self.args.numMCTSSims)
-            elif mode== "mcts" and strategy == "bridge_burning":
-                return(self.args.numMCTSSims/ game.avg_atomic_action())
-            elif mode == "emcts" and strategy == "vanilla":
-                return(self.args.numMCTSSims)
-            elif mode== "emcts" and strategy == "bridge_burning":
-                return(self.args.numMCTSSims/ self.args.emcts_bb_phases)
-            else: 
-                raise ValueError
+        if mode == "mcts" and strategy == "vanilla":
+            return(self.args.numMCTSSims)
+        elif mode== "mcts" and strategy == "bridge_burning":
+            return(self.args.numMCTSSims/ game.avg_atomic_action())
+        elif mode == "emcts" and strategy == "vanilla":
+            return(self.args.numMCTSSims)
+        elif mode== "emcts" and strategy == "bridge_burning":
+            return(self.args.numMCTSSims/ self.args.emcts_bb_phases)
+        else:
+            raise ValueError, f"Strategy {strategy} not in ['bridge-burning', 'vanilla'] or Node {mode} not in ['mcts','emcts']"
 
     def updateTurn(self):
         for i in range(self.batch_size):
             self._check_pause()
-
-            if self._is_arena:
-                player = self.games[i]._player
-                mode, strategy = self.arena_configurations[player]['mode'], self.arena_configurations[player]['strategy']
-            else:
-                mode, strategy = self.args.self_play_mode, self.args.self_play_strategy
-
+            mode, strategy = self._get_mode_and_strategy(i)
             if self.sims[i]>= self._sims_threshold(mode, strategy, self.games[i]):
 
                 self.temps[i] = self.args.temp_scaling_fn(
@@ -218,21 +223,19 @@ class SelfPlayAgent(mp.Process):
                     while not self._mcts(i).turn_completed:
                         self._mcts(i).update_turn(self.games[i], self.temps[i])
 
-                if strategy == 'bridge-burning':
+                elif strategy == 'bridge-burning':
                     if not self._mcts(i).turn_completed: 
                         self._mcts(i).update_turn(self.games[i], self.temps[i])
-                else:
-                    raise ValueError
-
-    def LogTurnToHistory(self):
-        for i in range(self.batch_size):
-        ############ TODO###############
-                turn, pi, state_history = self._mcts(i).get_results(self.games[i])
-                for t in range(len(turn)):
-                    self.histories[i].append((state_history[t], pi[t]))
-                self._mcts(i).reset()
-                
-
+                    
+                ## If the turn is completed, then log the state history and policy history to the retrain buffer, and reset
+                if self._mcts(i).turn_completed:
+                    turn, pi, state_history = self._mcts(i).get_results(self.games[i])
+                    for t in range(len(turn)):
+                        self.histories[i].append((state_history[t], pi[t]))
+                    self._mcts(i).reset()
+                    self.sims[i] = 0
+                    self.gplayers[i] = (self.gplayers[i] + 1) % self.game_cls.num_players()
+                    
     def processGameEnded(self):
         for i in range(self.batch_size):
             self._check_pause()

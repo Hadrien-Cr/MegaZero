@@ -127,10 +127,13 @@ class Game(GameState):
         return [(self.clone(), pi), (new_state, pi[::-1])]
 
 
-def display(board, action=None):
-    if action:
-        print(f'Action: {action}, Move: {action + 1}')
-    print(" -----------------------")
-    #print(' '.join(map(str, range(len(board[0])))))
-    print(board)
-    print(" -----------------------")
+    def __str__(self):
+        s = f"Player: {self._player} Turn: {self.turns} \n"
+        for sub_board in range(NUM_BOARDS):
+            for r in range(DEFAULT_HEIGHT):
+                s += " ".join([['_', '0', '1' ][self._board.pieces[sub_board][r][c]] for c in range(DEFAULT_WIDTH)])
+                if sub_board == self.micro_step and r == DEFAULT_HEIGHT - 1:
+                    s+= "  <--"
+                s+= "\n"
+            s+= "\n"
+        return(s)
