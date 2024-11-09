@@ -577,21 +577,24 @@ class Coach:
 
     @_set_state(TrainState.COMPARE_BASELINE)
     def compareToBaseline(self, iteration):
-        test_player = self.args.baselineTester(self.game_cls, self.args)
-        can_process = test_player.supports_process() and self.args.arenaBatched
-        if self.args.arenaMCTS:
-            nnplayer = MCTSPlayer(self.args.self_play_strategy, self.train_net, self.game_cls, self.args)
-        else:
-            nnplayer = NNPlayer(self.train_net, self.game_cls, self.args)
-        print('using batched MCTS' if can_process else 'not batched MCTS')
-        print('PITTING AGAINST BASELINE: ' + self.args.baselineTester.__name__)
+        if not isinstance(self.args.baselineTester, list):
+            self.args.baselineTester = [self.args.baselineTester]
+        for baseline in self.args.baselineTester:
+            test_player = baseline(self.game_cls, self.args)
+            can_process = test_player.supports_process() and self.args.arenaBatched
+            if self.args.arenaMCTS:
+                nnplayer = MCTSPlayer(self.args.self_play_strategy, self.train_net, self.game_cls, self.args)
+            else:
+                nnplayer = NNPlayer(self.train_net, self.game_cls, self.args)
+            print('Using batched MCTS' if can_process else 'Not using batched MCTS')
+            print('PITTING AGAINST BASELINE: ' + self.args.baselineTester.__name__)
 
-        players = [nnplayer] + [test_player] * (self.game_cls.num_players() - 1)
-        self.arena = Arena(players, self.game_cls, use_batched_mcts=can_process, args=self.args)
-        wins, draws, winrates = self.arena.play_games(self.args.arenaCompareBaseline)
-        if self.stop_train.is_set(): return
-        winrate = winrates[0]
+            players = [nnplayer] + [test_player] * (self.game_cls.num_players() - 1)
+            self.arena = Arena(players, self.game_cls, use_batched_mcts=can_process, args=self.args)
+            wins, draws, winrates = self.arena.play_games(self.args.arenaCompareBaseline)
+            if self.stop_train.is_set(): return
+            winrate = winrates[0]
 
-        print(f'NEW/BASELINE WINS : {wins[0]} / {sum(wins[1:])} ; DRAWS : {draws}\n')
-        print(f'NEW MODEL WINRATE : {round(winrate, 3)}')
-        self.writer.add_scalar('win_rate/baseline', winrate, iteration)
+            print(f'NEW/BASELINE WINS : {wins[0]} / {sum(wins[1:])} ; DRAWS : {draws}\n')
+            print(f'NEW MODEL WINRATE : {round(winrate, 3)}')
+            self.writer.add_scalar('win_rate/baseline', winrate, iteration)

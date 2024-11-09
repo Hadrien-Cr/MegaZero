@@ -108,5 +108,34 @@ def is_pickleable():
     game = Game()
     assert pickle.pickles(game) 
 
+# Test 10: Agent
+def test_agent():
+
+    from alphazero.GenericPlayers import NNPlayer,RawMCTSPlayer, RandomPlayer, RawEMCTSPlayer, RawOSLA
+    from alphazero.envs.connect4d.train import args
+    from alphazero.Arena import Arena
+    import alphazero.Coach as c
+    from random import shuffle 
+    args = c.get_args(args)
+    args['emcts_horizon'] = 4
+    args['_num_players'] = 2
+    args['numMCTSSims'] = 1000
+    args['arenaTemp'] = 0
+
+    for strategy in ["vanilla", "bridge-burning"]:
+        agents = [
+                    RawOSLA(Game, args),
+                    RawEMCTSPlayer(strategy, Game, args),
+                    RawMCTSPlayer(strategy, Game, args),
+                    RandomPlayer(Game),
+                ]
+        for _ in range(5):
+            shuffle(agents)
+            players = [agents[0], agents[1]]
+            print(players[0].__class__.__name__, "vs", players[1].__class__.__name__)
+            arena = Arena(players, Game, use_batched_mcts=args.arenaBatched, args=args)
+            arena.play_games(args.arenaCompare)
+    
 if __name__ == "__main__":
+    test_agent()
     pytest.main()

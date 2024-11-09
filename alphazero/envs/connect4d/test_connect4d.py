@@ -140,57 +140,27 @@ def test_agent():
     import alphazero.Coach as c
     from random import shuffle 
     args = c.get_args(args)
-    args['emcts_horizon'] = NUM_BOARDS
+    args['emcts_horizon'] = 2*NUM_BOARDS
     args['_num_players'] = 2
     args['numMCTSSims'] = 1000
     args['arenaTemp'] = 0
 
     for strategy in ["vanilla", "bridge-burning"]:
         agents = [
-                    #RawOSLA(Game, args),
+                    RawOSLA(Game, args),
                     RawEMCTSPlayer(strategy, Game, args),
                     RawMCTSPlayer(strategy, Game, args),
-                    #RandomPlayer(Game),
+                    RandomPlayer(Game),
                 ]
         for _ in range(5):
-            #shuffle(agents)
-            players = [agents[0], agents[0]]
+            shuffle(agents)
+            players = [agents[0], agents[1]]
             print(players[0].__class__.__name__, "vs", players[1].__class__.__name__)
             arena = Arena(players, Game, use_batched_mcts=args.arenaBatched, args=args)
             arena.play_games(args.arenaCompare)
     
-# Test 11: Timing function calls:
-def test_timings():
-    game = Game()
-    time_act, time_valid_moves, time_clone, time_ws = 0, 0, 0, 0
-    for _ in range(10_000): 
-        if game.win_state().any():
-            game = Game()
-        else: 
-            valid_actions = game.valid_moves()
-            true_indices = np.where(valid_actions)[0]
-            action = np.random.choice(true_indices).item()
-            t = time.time()
-            game.play_action(action)
-            time_act += time.time() - t
-
-            t = time.time()
-            game.clone()
-            time_act += time.time() - t
-
-            t = time.time()
-            game.valid_moves()
-            time_valid_moves += time.time() - t
-            
-            t = time.time()
-            game.win_state()
-            time_ws += time.time() - t
-
-    print(f"Time to act: {time_act}")
-    print(f"Time to valid moves: {time_valid_moves}")
-    print(f"Time to clone: {time_clone}")
-    print(f"Time to win state: {time_ws}")
 
 
 if __name__ == "__main__":
     test_agent()
+    pytest.main()

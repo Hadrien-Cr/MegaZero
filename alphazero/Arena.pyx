@@ -216,7 +216,7 @@ class Arena:
             policy_tensors = []
             value_tensors = []
             batch_ready = []
-            batch_queues = []
+            output_queues = []
             self.stop_event = mp.Event()
             self.pause_event = mp.Event()
             ready_queue = mp.Queue()
@@ -228,30 +228,30 @@ class Arena:
             # if self.args.workers >= mp.cpu_count():
             #    self.args.workers = mp.cpu_count() - 1
             arena_configurations = [(player.mode, player.strategy) for player in self.players]
-            for i in range(self.args.workers):
+            for id_process in range(self.args.workers):
                 input_tensors = [[] for _ in range(self.game_cls.num_players())]
-                batch_queues.append(mp.Queue())
+                output_queues.append(mp.Queue())
 
                 policy_tensors.append(torch.zeros(
                     [self.args.arena_batch_size, self.game_cls.action_size()]
                 ))
-                policy_tensors[i].share_memory_()
+                policy_tensors[id_process].share_memory_()
 
                 value_tensors.append(torch.zeros([self.args.arena_batch_size, self.game_cls.num_players() + 1]))
-                value_tensors[i].share_memory_()
+                value_tensors[id_process].share_memory_()
 
                 batch_ready.append(mp.Event())
                 if self.args.cuda:
-                    policy_tensors[i].pin_memory()
-                    value_tensors[i].pin_memory()
+                    policy_tensors[id_process].pin_memory()
+                    value_tensors[id_process].pin_memory()
 
                 self._agents.append(
-                    SelfPlayAgent(i, self.game_cls, arena_configurations, ready_queue, batch_ready[i],
-                                  input_tensors, policy_tensors[i], value_tensors[i], batch_queues[i],
+                    SelfPlayAgent(id_process, self.game_cls, arena_configurations, ready_queue, batch_ready[id_process],
+                                  input_tensors, policy_tensors[id_process], value_tensors[id_process], output_queues[id_process],
                                   result_queue, completed, games_played, self.stop_event, self.pause_event, self.args,
                                   _is_arena=True))
-                self._agents[i].daemon = True
-                self._agents[i].start()
+                self._agents[id_process].daemon = True
+                self._agents[id_process].start()
 
             sample_time = AverageMeter()
             end = time.time()
@@ -259,21 +259,22 @@ class Arena:
             n = 0
             while completed.value != self.args.workers:
                 try:
-                    id = ready_queue.get(timeout=1)
+                    id_process = ready_queue.get(timeout=0.1)
 
                     policy = []
                     value = []
-                    data = batch_queues[id].get()
+                    data = output_queues[id_process].get()
+                    
                     for player in range(len(self.players)):
                         batch = data[player]
                         if not isinstance(batch, list):
                             p, v = self.players[player].process(batch)
-                            policy.append(p.to(policy_tensors[id].device))
-                            value.append(v.to(value_tensors[id].device))
+                            policy.append(p.to(policy_tensors[id_process].device))
+                            value.append(v.to(value_tensors[id_process].device))
 
-                    policy_tensors[id].copy_(torch.cat(policy))
-                    value_tensors[id].copy_(torch.cat(value))
-                    batch_ready[id].set()
+                    policy_tensors[id_process].copy_(torch.cat(policy))
+                    value_tensors[id_process].copy_(torch.cat(value))
+                    batch_ready[id_process].set()
                 except Empty:
                     pass
 
@@ -286,16 +287,17 @@ class Arena:
                 wins, draws, _ = get_game_results(
                     result_queue,
                     self.game_cls,
-                    _get_index=lambda p, i: self._agents[i].player_to_index[p]
+                    _get_index=lambda p, id_process: self._agents[id_process].player_to_index[p]
                 )
-                for i, w in enumerate(wins):
-                    self.__player_stats[i].wins += w
+                for id_process, w in enumerate(wins):
+                    self.__player_stats[id_process].wins += w
                 self.draws += draws
                 self.__update_winrates()
 
-                bar.suffix = '({eps}/{maxeps} Games) Winrates: {wr} | Eps Time: {et:.3f}s | Total: {total:}' \
+                gps = (1/sample_time.avg) if sample_time.avg>0 else 0
+                bar.suffix = '({eps}/{maxeps} Games) Winrates: {wr} | GPS: {gps:.1f}s | Total: {total:}' \
                     .format(
-                        eps=size, maxeps=num, et=sample_time.avg, total=bar.elapsed_td, eta=bar.eta_td,
+                        eps=size, maxeps=num, gps = gps, total=bar.elapsed_td, eta=bar.eta_td,
                         wr=[round(w, 3) for w in self.winrates()]
                     )
                 bar.goto(size)
@@ -312,7 +314,7 @@ class Arena:
             # empty queues to prevent deadlock
             empty_queue(ready_queue)
             empty_queue(result_queue)
-            for q in batch_queues:
+            for q in output_queues:
                 empty_queue(q)
 
             # wait for all processes to finish
@@ -355,9 +357,10 @@ class Arena:
                 self.__update_winrates()
                 eps_time.update(time.time() - end)
                 end = time.time()
-                bar.suffix = '({eps}/{maxeps}) Winrates: {wr} | Eps Time: {et:.3f}s | Total: {total:} | ETA: {eta:}' \
+                gps = (1/eps_time.avg) if eps_time.avg>0 else 0
+                bar.suffix = '({eps}/{maxeps} Games) Winrates: {wr} | GPS: {gps:.1f}s | Total: {total:}' \
                     .format(
-                        eps=eps, maxeps=num, et=eps_time.avg, total=bar.elapsed_td, eta=bar.eta_td,
+                        eps=eps, maxeps=num, et=eps_time.avg, gps = gps, total=bar.elapsed_td, eta=bar.eta_td,
                         wr=[round(w, 3) for w in self.winrates()]
                     )
                 bar.next()

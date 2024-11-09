@@ -18,12 +18,12 @@ class SelfPlayAgent(mp.Process):
         - (_is_arena) Allow arena matches, which should support players with different tree search strategies
 
     """
-    def __init__(self, id, game_cls, arena_configurations, ready_queue, batch_ready, batch_tensor, policy_tensor,
+    def __init__(self, id_process, game_cls, arena_configurations, ready_queue, batch_ready, batch_tensor, policy_tensor,
                  value_tensor, output_queue, result_queue, complete_count, games_played,
                  stop_event: mp.Event, pause_event: mp.Event(), args, _is_arena=False, _is_warmup=False):
         super().__init__()
         self.arena_configurations = arena_configurations # [(mode_p1, strategy_p1), (mode_p2, strategy_p2), ...] if arena else None
-        self.id = id
+        self.id_process = id_process
         self.game_cls = game_cls
         self.ready_queue = ready_queue
         self.batch_ready = batch_ready
@@ -135,8 +135,8 @@ class SelfPlayAgent(mp.Process):
 
     def generateBatch(self):
         if self._is_arena:
-            batch_tensor = [[] for _ in range(self.game_cls.num_players())]
-            self.batch_indices = [[] for _ in range(self.game_cls.num_players())]
+            batch_tensor = [[] for _ in range(self.game_cls.num_players())] # BATCH OF GAMES TO EVALUATE
+            self.batch_indices = [[] for _ in range(self.game_cls.num_players())] # INDICES OF THE GAMES 
 
         for i in range(self.batch_size):
             self._check_pause()
@@ -150,7 +150,7 @@ class SelfPlayAgent(mp.Process):
             data = torch.from_numpy(state.observation())
             if self._is_arena:
                 data = data.view(-1, *state.observation_size())
-                player = self.player_to_index[self.games[i].player]
+                player = self.player_to_index[self.gplayers[i]]
                 batch_tensor[player].append(data)
                 self.batch_indices[player].append(i)
             else:
@@ -164,9 +164,8 @@ class SelfPlayAgent(mp.Process):
                     batch_tensor[player] = torch.cat(data)
             self.output_queue.put(batch_tensor)
             self.batch_indices = list(itertools.chain.from_iterable(self.batch_indices))
-
         if not self._is_warmup:
-            self.ready_queue.put(self.id)
+            self.ready_queue.put(self.id_process)
 
     def processBatch(self):
         if not self._is_warmup:
@@ -241,7 +240,7 @@ class SelfPlayAgent(mp.Process):
             self._check_pause()
             winstate = self.games[i].win_state()
             if winstate.any():
-                self.result_queue.put((self.games[i].clone(), winstate, self.id))
+                self.result_queue.put((self.games[i].clone(), winstate, self.id_process))
                 lock = self.games_played.get_lock()
                 lock.acquire()
                 if self.games_played.value < self.args.gamesPerIteration:

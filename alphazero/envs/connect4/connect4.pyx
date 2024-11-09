@@ -100,11 +100,10 @@ class Game(GameState):
         new_state._board.pieces = self._board.pieces[:, ::-1]
         return [(self.clone(), pi), (new_state, pi[::-1])]
 
-
-def display(board, action=None):
-    if action:
-        print(f'Action: {action}, Move: {action + 1}')
-    print(" -----------------------")
-    #print(' '.join(map(str, range(len(board[0])))))
-    print(board)
-    print(" -----------------------")
+    
+    # def __str__(self):
+    #     s = f"Player: {self._player} Turn: {self.turns} \n"
+    #     for r in range(DEFAULT_HEIGHT):
+    #         s += " ".join([['_', '0', '1' ][self._board.pieces[r][c]] for c in range(DEFAULT_WIDTH)])
+    #         s+= "\n"
+    #     return(s)

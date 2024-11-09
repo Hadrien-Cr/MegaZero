@@ -305,7 +305,8 @@ def test_agent():
             shuffle(agents)
             players = [agents[0], agents[1]]
             print(players[0].__class__.__name__, "vs", players[1].__class__.__name__)
-            arena = Arena(players, Game, use_batched_mcts=args.arenaBatched, args=args)
+            arena = Arena(players, Game, use_batched_mcts=False, args=args)
+            # arena = Arena(players, Game, use_batched_mcts=args.arenaBatched, args=args)
             arena.play_games(args.arenaCompare)
 
 if __name__ == '__main__':
