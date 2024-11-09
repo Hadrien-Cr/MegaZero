@@ -140,9 +140,7 @@ def test_agent():
     import alphazero.Coach as c
     from random import shuffle 
     args = c.get_args(args)
-    args['emcts_horizon'] = 2*NUM_BOARDS
     args['_num_players'] = 2
-    args['numMCTSSims'] = 1000
     args['arenaTemp'] = 0
 
     for strategy in ["vanilla", "bridge-burning"]:

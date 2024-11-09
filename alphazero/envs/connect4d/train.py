@@ -11,9 +11,9 @@ from alphazero.utils import dotdict
 args = get_args(dotdict({
     'run_name': 'connect4d_fpu',
     'emcts_horizon': 2*NUM_BOARDS,
-    'emcts_bb_phases': 10,
+    'emcts_bb_phases': 2*NUM_BOARDS,
     'self_play_mode': 'mcts', #'emcts', 'mcts',
-    'self_play_strategy': 'vanilla', #'bridge-burning','mode'
+    'self_play_strategy': 'vanilla', #'bridge-burning','vanilla'
     'baselineTester': RawOSLA,
     'workers': mp.cpu_count(),
     'startIter': 1,

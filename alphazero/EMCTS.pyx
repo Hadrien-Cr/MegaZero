@@ -6,7 +6,45 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 # cython: auto_pickle=True
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/ndarrayobject.h>
+"""
+This script implements the Evolutionary MCTS (EMCTS).
+This is a variant of MCTS where the transitions are not actions but are instead mutations of a long sequence of actions.
 
+
+Class Enode: Represents a Node of the tree search
+    Attributes:
+        seq: the sequence of action that it represents
+        m (eg Mutation(tau=1, a=2)): the mutation that it represents (seq is obtained by switching seq[1] to a=2 in the parent sequence) 
+        _children: list of the children of the node
+        n,v,q,p,e: statistics on the visits, the value, the qvalue, the prior, and the "terminality" of the node
+        player: represents to which player is associated the mutation
+    Methods:
+        add_children(self, valid_mutations, mutate_prior, player_history,num_players): uses the valid mutations and the mutate prior to create children node
+        best_child(self, fpu_reduction, cpuct): uses UCT formula to select the best node.
+
+
+Class EMCTS: Object that performs the search
+    Attributes:
+        - seq_length: the length of each sequence (padded if needed)
+        - _root, _curnode, _path: root, current node, and current path constructed
+        - policy_history: array that keeps track of the number of visits of the mutations
+        - n_phases: Maximum number of mutations update to apply to the root
+        - phase: Current number of mutations applied to the root
+        - turn_completed: if True, then all phases are used and the search should be reset
+    Methods:
+        - find_leaf(self, gs): Method for selection + expansion
+            If the root sequence is not initialized yet, play it to its end and return the leaf state
+            If the root sequence is initialized, look for the best mutations of the sequences until the current node has not been visited, 
+            expand it, play the sequence and return the leaf state.
+       -  process_results(self, gs, value, pi, add_root_noise, add_root_temp):  for backpropagating the vectors (value, pi)
+            If the root sequence is not initialized yet, use pi to extend it.
+            Else, perform the standard backpropagation from MCTS algorithm is
+        - update_turn(self, gs): Method to update the root by taking the best mutation found, increments the phase
+        - get_results(self, gs): Method to extract the results of the search
+            Returns the root turn sequence, the state visited by playing this sequence, and the policy history normalized
+"""
 from libc.math cimport sqrt
 
 import numpy as np
@@ -74,14 +112,14 @@ cdef class ENode:
 
         for tau in range(len(self.seq)):
             player = player_history[tau]
-            self._children.extend([ENode(seq = copy.deepcopy(self.seq),
+            self._children.extend([ENode(seq = [],
                                         m = Mutation(tau,a), 
                                         num_players = num_players,
                                         p = mutate_prior[tau, a],
                                         player = player) 
                                     for a, valid in enumerate(valid_mutations[tau]) if valid])
         # shuffle children
-        np.random.shuffle(self._children)
+        #np.random.shuffle(self._children)
         assert len(self._children)>0 or self.e.any(),  f"No children has been created from non terminal node {self} with {np.sum(valid_mutations)} valid_mutations."
 
     cdef float uct(self, float sqrt_parent_n, float fpu_value, float cpuct):
@@ -106,16 +144,6 @@ cdef class ENode:
         return child
 
 
-"""
-def rebuild_mcts(num_players, cpuct, root, curnode, path):
-    mcts = MCTS(num_players, cpuct)
-    mcts.cpuct = cpuct
-    mcts._root = root
-    mcts._curnode = curnode
-    mcts.path = path
-    return mcts
-"""
-
 
 # @cython.auto_pickle(True)
 cdef class EMCTS:
@@ -132,7 +160,6 @@ cdef class EMCTS:
 
     cdef public np.ndarray policy_history
     cdef public list player_history
-    cdef public list state_history
     cdef public np.ndarray mutate_prior
     cdef public int seq_length
     cdef public int phase
@@ -159,9 +186,7 @@ cdef class EMCTS:
         self.turn_completed = False
 
         self.mutate_prior = None # An array that gives the prior probability mutate_prior[t,a] to mutate the t-th to action a 
-        self.policy_history = None # An array that stores the count of the mutations that have been made
         self.player_history = []
-        self.state_history = []
         self.seq_length = args.emcts_horizon
 
         self.depth = 0
@@ -183,9 +208,7 @@ cdef class EMCTS:
         self.phase = 0
         self.turn_completed = False
 
-        self.policy_history = None  # An array that stores the count of the mutations that have been made
         self.player_history = []
-        self.state_history = []
         self.mutate_prior = None # An array that gives the prior probability mutate_prior[t,a] to mutate the t-th to action a 
         
         self.depth = 0
@@ -256,6 +279,7 @@ cdef class EMCTS:
         """
         self.depth = 0
         self._curnode = self._root
+        cdef list parent_seq = self._root.seq
         cdef object leaf = gs.clone()
         assert not gs.win_state().any(), "Impossible to call find_leaf on terminal node"
         assert gs.micro_step == 0,  f"{self} {leaf} "
@@ -269,6 +293,7 @@ cdef class EMCTS:
         else:
             while self._curnode.n > 0 and not self._curnode.e.any():
                 self._path.append(self._curnode)
+                parent_seq = self._curnode.seq
                 self._curnode = self._curnode.best_child(self.fpu_reduction, self.cpuct)
                 self.depth += 1
 
@@ -277,7 +302,9 @@ cdef class EMCTS:
                 self._discount_max_depth = self.depth
             
             if self._curnode.n == 0:
+                if len(self._path)==0: self._curnode.seq = []
                 valids = self.mutate_and_play(state = leaf, 
+                                            parent_seq = parent_seq,
                                             node = self._curnode)
                 self._curnode.e = leaf.win_state()
                 self._curnode.add_children( valid_mutations = valids, 
@@ -290,41 +317,38 @@ cdef class EMCTS:
 
         return(leaf)
 
-    cpdef np.ndarray mutate_and_play(self, object state, ENode node):
+    cpdef np.ndarray mutate_and_play(self, object state, list parent_seq, ENode node):
         '''
         Returns valid_mutations
         '''
         assert node.n == 0
-        cdef np.ndarray valids = np.zeros((len(node.seq), state.action_size()), dtype=np.float32)
+        assert len(node.seq) == 0
+        cdef np.ndarray valids = np.zeros((len(parent_seq), state.action_size()), dtype=np.float32)
         player = state._player
         t = 0
-
-        while t < len(node.seq):
+        while t < len(parent_seq):
             if state.win_state().any(): 
                 valid_moves = state.valid_moves()
                 valids[t] = valid_moves
                 break
             else:
-                a = node.m.a if (t == node.m.tau and node.m.a != PAD) else node.seq[t]
+                a = node.m.a if (t == node.m.tau and node.m.a != PAD) else parent_seq[t]
                 valid_moves = state.valid_moves()
                 
-                if valid_moves[a]:
-                    valids[t] = valid_moves
-                    valids[t, a] = 0 
-                    state.play_action(a)  
-                else:
+                if not valid_moves[a]:
                     a = np.argmax(self.mutate_prior[t]*state.valid_moves()).item()
-                    valids[t] = valid_moves
-                    valids[t, a] = 0 
-                    state.play_action(a)  
                     self.policy_history[t, a] +=1
- 
-                node.seq[t] = a
+                valids[t] = valid_moves
+                valids[t, a] = 0 
+                state.play_action(a)  
+                node.seq.append(a)
+                
             t+=1
+
             # pad when the end of turn is reached
-            if state.micro_step == 0:
+            if state.micro_step == 0 and t < len(parent_seq):
                 while (t%state.d) != 0:
-                    node.seq[t] = PAD
+                    node.seq.append(PAD)
                     t+=1
                 player = state._player
         return valids        

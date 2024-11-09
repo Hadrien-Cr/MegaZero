@@ -15,7 +15,7 @@ class SelfPlayAgent(mp.Process):
     """
     This process has two goals:
         - Allow self-play matches and logging the decisions to the output_queue with a given tree search self-play strategy
-        - (_is_arena) Allow arena matches, which should support players with different tree search strategies
+        - (_is_arena) Allow arena matches, which should support players with different tree search strategies, specified in arena_configutations
 
     """
     def __init__(self, id_process, game_cls, arena_configurations, ready_queue, batch_ready, batch_tensor, policy_tensor,
@@ -199,11 +199,11 @@ class SelfPlayAgent(mp.Process):
     def _sims_threshold(self, mode, strategy, game):
         if mode == "mcts" and strategy == "vanilla":
             return(self.args.numMCTSSims)
-        elif mode== "mcts" and strategy == "bridge_burning":
+        elif mode== "mcts" and strategy == "bridge-burning":
             return(self.args.numMCTSSims/ game.avg_atomic_action())
         elif mode == "emcts" and strategy == "vanilla":
             return(self.args.numMCTSSims)
-        elif mode== "emcts" and strategy == "bridge_burning":
+        elif mode== "emcts" and strategy == "bridge-burning":
             return(self.args.numMCTSSims/ self.args.emcts_bb_phases)
         else:
             raise ValueError, f"Strategy {strategy} not in ['bridge-burning', 'vanilla'] or Node {mode} not in ['mcts','emcts']"
@@ -226,15 +226,15 @@ class SelfPlayAgent(mp.Process):
                     if not self._mcts(i).turn_completed: 
                         self._mcts(i).update_turn(self.games[i], self.temps[i])
                     
-                ## If the turn is completed, then log the state history and policy history to the retrain buffer, and reset
-                if self._mcts(i).turn_completed:
-                    turn, pi, state_history = self._mcts(i).get_results(self.games[i])
-                    for t in range(len(turn)):
-                        self.histories[i].append((state_history[t], pi[t]))
-                    self._mcts(i).reset()
-                    self.sims[i] = 0
-                    self.gplayers[i] = (self.gplayers[i] + 1) % self.game_cls.num_players()
-                    
+            ## If the turn is completed, then log the state history and policy history to the retrain buffer, and reset
+            if self._mcts(i).turn_completed:
+                turn, pi, state_history = self._mcts(i).get_results(self.games[i])
+                for t in range(len(turn)):
+                    self.histories[i].append((state_history[t], pi[t]))
+                self._mcts(i).reset()
+                self.sims[i] = 0
+                self.gplayers[i] = (self.gplayers[i] + 1) % self.game_cls.num_players()
+                
     def processGameEnded(self):
         for i in range(self.batch_size):
             self._check_pause()

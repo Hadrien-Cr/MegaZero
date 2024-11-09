@@ -6,7 +6,8 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 # cython: auto_pickle=True
-
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/ndarrayobject.h>
 from libc.math cimport sqrt
 
 import numpy as np
@@ -24,24 +25,30 @@ np.seterr(all='raise')
 
 
 """
-def rebuild_node(children, a, cpuct, num_players, e, q, n, p, player):
-    childs = []
-    for child_state in children:
-        rebuild, args = child_state[0], child_state[1:]
-        child = rebuild(*args)
-        childs.append(child)
+This script implements the Monte-Carlo Tree Search (MCTS).
 
-    node = Node(a, cpuct, num_players)
-    node._children = childs
-    node.a = a
-    node.cpuct = cpuct
-    node.e = e
-    node.q = q
-    node.n = n
-    node.p = p
-    node.player = player
+Class Enode: Represents a Node of the tree search
+    Attributes:
+        a: the action that it represents (seq is obtained by switching seq[1] to a=2 in the parent sequence) 
+        _children: list of the children of the node
+        n,v,q,p,e: statistics on the visits, the value, the qvalue, the prior, and the "terminality" of the node
+        player: represents to which player is associated the mutation
+    Methods:
+        add_children(self, valids): uses the valid mutations and the mutate prior to create children node
+        best_child(self, fpu_reduction, cpuct): uses UCT formula to select the best node.
 
-    return node
+Class MCTS: Object that performs the search
+    Attributes:
+        - _root, _curnode, _path: root, current node, and current path constructed
+        - n_phases: Maximum number of mutations update to apply to the root
+        - phase: Current number of mutations applied to the root
+        - turn_completed: if True, then all phases are used and the search should be reset
+    Methods:
+        - find_leaf(self, gs): Method for selection + expansion
+       -  process_results(self, gs, value, pi, add_root_noise, add_root_temp):  for backpropagating the vectors (value, pi)
+        - update_turn(self, gs): Method to update the root by taking the best action found, increments the phase
+        - get_results(self, gs): Method to extract the results of the search
+            Returns the root turn sequence, the state visited by playing this sequence, and the policy normalized
 """
 
 
@@ -70,11 +77,8 @@ cdef class Node:
         return 'Node(a={}, e={}, q={}, v={}, n={}, p={}, player={})' \
             .format(self.a, self.e, self.q, self.v, self.n, self.p, self.player)
 
-    # def __reduce__(self):
-    #    return rebuild_node, ([n.__reduce__() for n in self._children], self.a, self.cpuct, self._players, self.e, self.q, self.n, self.p, self.player)
-
-    cdef void add_children(self, np.ndarray v, int num_players):
-        self._children.extend([Node(a, num_players) for a, valid in enumerate(v) if valid])
+    cdef void add_children(self, np.ndarray valid_moves, int num_players):
+        self._children.extend([Node(a, num_players) for a, valid in enumerate(valid_moves) if valid])
         # shuffle children
         np.random.shuffle(self._children)
 
@@ -103,17 +107,6 @@ cdef class Node:
             elif c.e[self.player]:
                 return c
         return child
-
-
-"""
-def rebuild_mcts(num_players, cpuct, root, curnode, path):
-    mcts = MCTS(num_players, cpuct)
-    mcts.cpuct = cpuct
-    mcts._root = root
-    mcts._curnode = curnode
-    mcts.path = path
-    return mcts
-"""
 
 
 # @cython.auto_pickle(True)
