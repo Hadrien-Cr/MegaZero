@@ -117,9 +117,7 @@ def test_agent():
     import alphazero.Coach as c
     from random import shuffle 
     args = c.get_args(args)
-    args['emcts_horizon'] = 4
     args['_num_players'] = 2
-    args['numMCTSSims'] = 1000
     args['arenaTemp'] = 0
 
     for strategy in ["vanilla", "bridge-burning"]:
@@ -129,13 +127,12 @@ def test_agent():
                     RawMCTSPlayer(strategy, Game, args),
                     RandomPlayer(Game),
                 ]
-        for _ in range(5):
+        for i in range(len(agents)-1):
             shuffle(agents)
-            players = [agents[0], agents[1]]
+            players = [agents[i], agents[i+1]]
             print(players[0].__class__.__name__, "vs", players[1].__class__.__name__)
             arena = Arena(players, Game, use_batched_mcts=args.arenaBatched, args=args)
             arena.play_games(args.arenaCompare)
     
 if __name__ == "__main__":
-    test_agent()
     pytest.main()
