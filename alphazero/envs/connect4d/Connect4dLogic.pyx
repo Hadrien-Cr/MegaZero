@@ -89,6 +89,7 @@ cdef class Board:
         cdef Py_ssize_t r, c, d, s
         cdef Py_ssize_t direction_d, direction_w, direction_h, bound_d, bound_w, bound_h
 
+        ################### 4 STANDARD WINNING CONDITIONS ##########################
         # Check if row wins (constant depth, width(+/-), constant height )
         total = 1
         for (direction_w, bound_w) in [(1, self.width-1), (-1, 0)]:
@@ -139,6 +140,8 @@ cdef class Board:
                 if total == self.win_length:
                     return (True, player)
 
+
+        ################### 6 ADDITIONAL RULES ##########################
         # Additionnal Rule : check diagonals (depth++, constant width, height++)
         total = 1
         for (direction_d, bound_d, direction_h, bound_h) in [(-1, 0, -1, 0), (1, self.num_boards-1, 1, self.height-1)]:
@@ -165,7 +168,7 @@ cdef class Board:
                 if total == self.win_length:
                     return (True, player)    
 
-        ################### 4 ADDITIONAL RULES ##########################
+        
 
         # Additionnal Rule : check diagonals (depth++, width++, height++)
         total = 1

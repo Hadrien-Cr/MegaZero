@@ -1,5 +1,5 @@
 
-from alphazero.envs.connect4d.connect4d import Game, NUM_BOARDS 
+from alphazero.envs.connect4.connect4 import Game, NUM_BOARDS 
 from alphazero.GenericPlayers import RawMCTSPlayer, RandomPlayer, RawEMCTSPlayer, RawOSLA
 from alphazero.Arena import Arena
 import alphazero.Coach as c

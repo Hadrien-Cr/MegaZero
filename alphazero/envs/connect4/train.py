@@ -7,13 +7,14 @@ from alphazero.NNetWrapper import NNetWrapper as nn
 from alphazero.envs.connect4d.connect4d import Game
 from alphazero.GenericPlayers import RawMCTSPlayer, RawOSLA
 from alphazero.utils import dotdict
+from alphazero.envs.connect4.config import CONFIG_MCTS_VANILLA, CONFIG_EMCTS_VANILLA, CONFIG_MCTS_BB, CONFIG_EMCTS_BB
+
+# config = CONFIG_MCTS_VANILLA
+config = CONFIG_EMCTS_VANILLA
+# config = CONFIG_MCTS_BB
+# config = CONFIG_EMCTS_BB
 
 args = get_args(dotdict({
-    'run_name': 'connect4_fpu',
-    'emcts_horizon': 4,
-    'emcts_bb_phases': 10,
-    'self_play_mode': 'mcts', #'emcts', 'mcts',
-    'self_play_strategy': 'vanilla', #'bridge-burning','mode'
     'baselineTester': RawOSLA,
     'workers': mp.cpu_count(),
     'startIter': 1,
@@ -24,7 +25,6 @@ args = get_args(dotdict({
     # should preferably be a multiple of process_batch_size and workers
     'gamesPerIteration': 16*mp.cpu_count(),
     'symmetricSamples': True,
-    'numMCTSSims': 1000,
     'compareWithBaseline': True,
     'arenaCompareBaseline': 16*mp.cpu_count(),
     'arenaCompare': 16*mp.cpu_count(),
@@ -52,7 +52,7 @@ args = get_args(dotdict({
     policy_dense_layers=[1024]
 )
 args.scheduler_args.milestones = [75, 150]
-
+args.update(config)
 
 if __name__ == "__main__":
     nnet = nn(Game, args)

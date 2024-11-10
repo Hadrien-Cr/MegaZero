@@ -587,7 +587,7 @@ class Coach:
             else:
                 nnplayer = NNPlayer(self.train_net, self.game_cls, self.args)
             print('Using batched MCTS' if can_process else 'Not using batched MCTS')
-            print('PITTING AGAINST BASELINE: ' + self.args.baselineTester.__name__)
+            print('PITTING AGAINST BASELINE: ' + baseline.__name__)
 
             players = [nnplayer] + [test_player] * (self.game_cls.num_players() - 1)
             self.arena = Arena(players, self.game_cls, use_batched_mcts=can_process, args=self.args)

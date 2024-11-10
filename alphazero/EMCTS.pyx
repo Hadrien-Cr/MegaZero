@@ -139,8 +139,8 @@ cdef class ENode:
             if uct > cur_best:
                 cur_best = uct
                 child = c
-            elif not self.e[self.player] and c.e[self.player]:
-                return c
+            # elif not self.e[self.player] and c.e[self.player]:
+            #     return c
         return child
 
 
