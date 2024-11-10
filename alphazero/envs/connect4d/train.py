@@ -3,7 +3,7 @@ from torch import multiprocessing as mp
 from alphazero.Coach import Coach, get_args
 from alphazero.NNetWrapper import NNetWrapper as nn
 from alphazero.envs.connect4d.connect4d import Game, NUM_BOARDS
-from alphazero.GenericPlayers import RawMCTSPlayer, RawOSLA
+from alphazero.GenericPlayers import RandomPlayer, RawMCTSPlayer, RawOSLA
 from alphazero.utils import dotdict
 from alphazero.envs.connect4d.config import CONFIG_MCTS_VANILLA, CONFIG_EMCTS_VANILLA, CONFIG_MCTS_BB, CONFIG_EMCTS_BB
 
@@ -13,24 +13,24 @@ config = CONFIG_MCTS_VANILLA
 # config = CONFIG_EMCTS_BB
 
 args = get_args(dotdict({
-    'baselineTester': RawOSLA,
-    'workers': mp.cpu_count(),
+    'baselineTester': [(RandomPlayer, None), (RawOSLA, None), (RawMCTSPlayer, "vanilla")],
+    'workers': (mp.cpu_count()-1),
     'startIter': 1,
-    'numIters': 1000,
+    'numIters': 50,
     'numWarmupIters': 1,
-    'process_batch_size': 16,
+    'process_batch_size': 128,
     'train_batch_size': 1024,
     # should preferably be a multiple of process_batch_size and workers
-    'gamesPerIteration': 16*mp.cpu_count(),
+    'gamesPerIteration': 128*(mp.cpu_count()-1),
     'symmetricSamples': True,
     'compareWithBaseline': True,
-    'arenaCompareBaseline': 16*mp.cpu_count(),
-    'arenaCompare': 16*mp.cpu_count(),
+    'arenaCompareBaseline': 16*(mp.cpu_count()-1),
+    'arenaCompare': 16*(mp.cpu_count()-1),
     'arena_batch_size': 16,
     'arenaTemp': 1,
-    'arenaMCTS': True,
+    'arenaMCTS': False,
     'arenaBatched': True,
-    'baselineCompareFreq': 1,
+    'baselineCompareFreq': 2,
     'compareWithPast': True,
     'pastCompareFreq': 1,
     'cpuct': 4,
@@ -43,7 +43,7 @@ args = get_args(dotdict({
 
     lr=0.01,
     num_channels=128,
-    depth=4,
+    depth=2,
     value_head_channels=32,
     policy_head_channels=32,
     value_dense_layers=[1024, 256],

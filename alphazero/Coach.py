@@ -579,15 +579,15 @@ class Coach:
     def compareToBaseline(self, iteration):
         if not isinstance(self.args.baselineTester, list):
             self.args.baselineTester = [self.args.baselineTester]
-        for baseline in self.args.baselineTester:
-            test_player = baseline(self.game_cls, self.args)
+        for (baseline, strategy) in self.args.baselineTester:
+            test_player = baseline(strategy, self.game_cls, self.args)
             can_process = test_player.supports_process() and self.args.arenaBatched
             if self.args.arenaMCTS:
                 nnplayer = MCTSPlayer(self.args.self_play_strategy, self.train_net, self.game_cls, self.args)
             else:
                 nnplayer = NNPlayer(self.train_net, self.game_cls, self.args)
             print('Using batched MCTS' if can_process else 'Not using batched MCTS')
-            print('PITTING AGAINST BASELINE: ' + baseline.__name__)
+            print('PITTING AGAINST BASELINE: ' + test_player.__class__.__name__)
 
             players = [nnplayer] + [test_player] * (self.game_cls.num_players() - 1)
             self.arena = Arena(players, self.game_cls, use_batched_mcts=can_process, args=self.args)
@@ -597,4 +597,4 @@ class Coach:
 
             print(f'NEW/BASELINE WINS : {wins[0]} / {sum(wins[1:])} ; DRAWS : {draws}\n')
             print(f'NEW MODEL WINRATE : {round(winrate, 3)}')
-            self.writer.add_scalar('win_rate/baseline', winrate, iteration)
+            self.writer.add_scalar(f'win_rate/baseline{test_player.__class__.__name__}', winrate, iteration)

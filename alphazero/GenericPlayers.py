@@ -46,6 +46,9 @@ class BasePlayer(ABC):
 
 
 class RandomPlayer(BasePlayer):
+    def __init__(self, strategy, game_cls: GameState = None, args: dotdict = None, verbose: bool = False):
+        pass
+
     def play(self, state):
         turn = []
         current_player = state._player
@@ -299,7 +302,7 @@ class RawEMCTSPlayer(EMCTSPlayer):
 class RawOSLA(BasePlayer):
     """Simple player who always takes a win if presented, or blocks a loss if obvious, otherwise is random."""
 
-    def __init__(self, game_cls, args, verbose=False):
+    def __init__(self, strategy, game_cls, args, verbose=False):
         self.verbose = verbose
         self.args = args
         self.mode = "osla"
