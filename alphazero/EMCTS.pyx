@@ -295,11 +295,6 @@ cdef class EMCTS:
                 self._path.append(self._curnode)
                 parent_seq = self._curnode.seq
                 self._curnode = self._curnode.best_child(self.fpu_reduction, self.cpuct)
-                self.depth += 1
-
-            if self.depth > self.max_depth:
-                self.max_depth = self.depth
-                self._discount_max_depth = self.depth
             
             if self._curnode.n == 0:
                 if len(self._path)==0: self._curnode.seq = []
@@ -312,7 +307,7 @@ cdef class EMCTS:
                                             num_players = self._num_players,
                                             player_history = self.player_history)
 
-            if self.depth == 1 and not self._curnode.e.any() and self._root.e.any():
+            if len(self._path) == 1 and not self._curnode.e.any() and self._root.e.any():
                 self.update_turn(gs, self._curnode.m)
 
         return(leaf)
@@ -420,7 +415,6 @@ cdef class EMCTS:
         cdef Py_ssize_t num_players = gs.num_players()
         cdef ENode parent
         cdef float v
-        cdef float discount
         cdef int i = 0
 
         if self._curnode.e.any():
@@ -430,20 +424,7 @@ cdef class EMCTS:
             parent = self._path.pop()
             v = self._get_value(value, parent.player, num_players)
 
-            # apply discount only to current node's Q value
-            discount = (self.min_discount ** (i / self._discount_max_depth))
-            if v < _DRAW_VALUE:
-                # (1 - discount) + 1 to invert it because bad values far away
-                # are better than bad values close to root
-                discount = 2 - discount
-            elif v == _DRAW_VALUE:
-                # don't discount value in the rare case that it is a precise draw (0.5)
-                discount = 1
-
-            # scale value to the range [-1, 1]
-            # v = 2 * v * discount - 1
-
-            self._curnode.q = (self._curnode.q * self._curnode.n + v * discount) / (self._curnode.n + 1)
+            self._curnode.q = (self._curnode.q * self._curnode.n) / (self._curnode.n + 1)
             if self._curnode.n == 0:
                 self._curnode.v = self._get_value(value, self._curnode.player, num_players)  # * 2 - 1
             self._curnode.n += 1
@@ -575,14 +556,3 @@ cdef class EMCTS:
             counts[idx_of_mut] = c.n
         return np.asarray(counts)
 
-    cpdef void _add_root_noise(self):
-        cdef int num_valid_moves = len(self._root._children)
-        cdef float[:] noise = np.array(np.random.dirichlet(
-            [NOISE_ALPHA_RATIO / (num_valid_moves+1)] * num_valid_moves
-        ), dtype=np.float32)
-        cdef ENode c
-        cdef float n
-
-        for n, c in zip(noise, self._root._children):
-            c.p = c.p * (1 - self.root_noise_frac) + self.root_noise_frac * n
-    

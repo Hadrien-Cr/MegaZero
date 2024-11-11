@@ -28,8 +28,8 @@ class Game(GameState):
     
     Please check the rules here https://boardgamegeek.com/boardgame/364343/strands
     
-    The rules can be summarize as: each turn, 
-        placing d tiles labeled d on the empty hexes corresponding to the digit chosen 
+    The rules can be summarize as: 
+        each turn, placing d tiles labeled d on the empty hexes corresponding to the digit chosen 
     (if only p<d such hexes are available, place d tiles; p is denoted "rest" in the code)
 
     """

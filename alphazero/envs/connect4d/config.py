@@ -16,8 +16,8 @@ CONFIG_EMCTS_VANILLA = {
     "run_name": "connect4d-emcts-vanilla",
     "self_play_mode": "emcts",
     "self_play_strategy": "vanilla",
-    "emcts_horizon": 8,
-    "emcts_bb_phases": 8,
+    "emcts_horizon": 12,
+    "emcts_bb_phases": 6,
     "numMCTSSims": 500,
 }
 
@@ -25,7 +25,7 @@ CONFIG_EMCTS_BB = {
     "run_name": "connect4d-emcts-bb",
     "self_play_mode": "emcts",
     "self_play_strategy": "bridge-burning",
-    "emcts_horizon": 8,
-    "emcts_bb_phases": 8,
+    "emcts_horizon": 12,
+    "emcts_bb_phases": 6,
     "numMCTSSims": 500,
 }

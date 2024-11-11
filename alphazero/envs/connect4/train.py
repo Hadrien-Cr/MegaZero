@@ -15,7 +15,7 @@ config = CONFIG_EMCTS_VANILLA
 # config = CONFIG_EMCTS_BB
 
 args = get_args(dotdict({
-    'baselineTester': [(RandomPlayer, None), (RawOSLA, None), (RawMCTSPlayer, "vanilla")],
+    'baselineTester': [(RawOSLA, None), (RawMCTSPlayer, "vanilla")],
     'workers': (mp.cpu_count()-1),
     'startIter': 1,
     'numIters': 1000,
@@ -30,13 +30,13 @@ args = get_args(dotdict({
     'arenaCompare': 16*(mp.cpu_count()-1),
     'arena_batch_size': 16,
     'arenaTemp': 1,
-    'arenaMCTS': False,
+    'arenaMCTS': True,
     'arenaBatched': True,
-    'baselineCompareFreq': 2,
+    'baselineCompareFreq': 1,
     'compareWithPast': True,
     'pastCompareFreq': 1,
-    'cpuct': 4,
-    'fpu_reduction': 0.4,
+    'cpuct': 2,
+    'fpu_reduction': 0.1,
     'load_model': True,
 }),
     model_gating=True,
@@ -45,11 +45,11 @@ args = get_args(dotdict({
 
     lr=0.01,
     num_channels=128,
-    depth=4,
-    value_head_channels=32,
-    policy_head_channels=32,
-    value_dense_layers=[1024, 256],
-    policy_dense_layers=[1024]
+    depth=8,
+    value_head_channels=16,
+    policy_head_channels=16,
+    value_dense_layers=[256, 128],
+    policy_dense_layers=[256]
 )
 args.scheduler_args.milestones = [75, 150]
 args.update(config)

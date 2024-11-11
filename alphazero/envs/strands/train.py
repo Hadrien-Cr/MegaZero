@@ -10,13 +10,13 @@ from alphazero.envs.strands.heuristic import StrandsHeuristicMCTS,StrandsHeurist
 from alphazero.utils import dotdict
 from alphazero.envs.strands.config import CONFIG_MCTS_VANILLA, CONFIG_EMCTS_VANILLA, CONFIG_MCTS_BB, CONFIG_EMCTS_BB
 
-config = CONFIG_MCTS_VANILLA
+# config = CONFIG_MCTS_VANILLA
 # config = CONFIG_EMCTS_VANILLA
 # config = CONFIG_MCTS_BB
-# config = CONFIG_EMCTS_BB
+config = CONFIG_EMCTS_BB
 
 args = get_args(dotdict({
-    'baselineTester': [(RandomPlayer, None), (StrandsHeuristicOSLA, None), (StrandsHeuristicMCTS, "vanilla")],
+    'baselineTester': [(StrandsHeuristicOSLA, None)],
     'workers': (mp.cpu_count()-1),
     'symmetricSamples': True,
     'startIter': 1,
@@ -30,17 +30,17 @@ args = get_args(dotdict({
     'skipSelfPlayIters': None,
     'selfPlayModelIter': None,
     'compareWithBaseline': True,
-    'arenaCompareBaseline': 16*(mp.cpu_count()-1),
-    'arenaCompare': 16*(mp.cpu_count()-1),
-    'arena_batch_size': 16,
+    'arenaCompareBaseline': 10*(mp.cpu_count()-1),
+    'arenaCompare': 10*(mp.cpu_count()-1),
+    'arena_batch_size': 10,
     'arenaTemp': 1,
-    'arenaMCTS': False,
+    'arenaMCTS': True,
     'arenaBatched': True,
     'baselineCompareFreq': 2,
     'compareWithPast': True,
     'pastCompareFreq': 1,
-    'cpuct': 4,
-    'fpu_reduction': 0.4,
+    'cpuct': 2,
+    'fpu_reduction': 0.1,
     'load_model': True,
 }),
     model_gating=True,
@@ -49,10 +49,10 @@ args = get_args(dotdict({
 
     lr=0.01,
     num_channels=128,
-    depth=4,
-    value_head_channels=32,
-    policy_head_channels=32,
-    value_dense_layers=[1024, 256],
+    depth=6,
+    value_head_channels=16,
+    policy_head_channels=16,
+    value_dense_layers=[1024, 128],
     policy_dense_layers=[1024]
 )
 args.scheduler_args.milestones = [75, 150]
