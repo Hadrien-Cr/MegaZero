@@ -8,7 +8,7 @@ from alphazero.envs.connect4d.Connect4dLogic import Board
 
 import numpy as np
 
-NUM_BOARDS = 6 # Number of boards in the stacked environment, also equals to d
+NUM_BOARDS = 5 # Number of boards in the stacked environment, also equals to d
 DEFAULT_HEIGHT = 4
 DEFAULT_WIDTH = 7
 DEFAULT_WIN_LENGTH = 4

@@ -5,19 +5,12 @@ This is an adaptation of AlphaZero based on the following repositories:
 
 The purpose of the code is to play multi-action games with the AlphaZero framework.
 
-```
-self.generateSelfPlayAgents() # creates as many selfplayAgents as "workers" and let them play and collect games
-self.processSelfPlayBatches(self.model_iter)
-self.saveIterationSamples(self.model_iter)
-self.processGameResults(self.model_iter)
-self.killSelfPlayAgents()
-self.train() # fit the network to the collected experience
-self.compareToBaseline() # MCTSPlayer(net iter n) VS RawMCTS
-self.compareToPast() # Arena MCTSPlayer(net iter n) vs MCTSPlayer(net iter n-1)
-```
-**`data`:** the folder where the collected experience is written
+### How to use:
 
-**`checkpoint`:** the folder where the model checkpoint are written. By default, the newest checkpoint is loaded, delete the folders if needed.
+Use **`envs/generic`** to learn how to make program your own multi-action game
+
+To train it, run **`python3 -m alphazero.envs.<env_name>.train --algorithm <alg>`** 
+Games implemented are: Connect4, Connect4d, and Strands
 
 ### Description of some hyperparameters
 

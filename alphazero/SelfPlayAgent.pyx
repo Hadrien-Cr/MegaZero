@@ -200,7 +200,7 @@ class SelfPlayAgent(mp.Process):
         if mode == "mcts" and strategy == "vanilla":
             return(self.args.numMCTSSims)
         elif mode== "mcts" and strategy == "bridge-burning":
-            return(self.args.numMCTSSims/ game.avg_atomic_action())
+            return(self.args.numMCTSSims/ game.avg_atomic_actions())
         elif mode == "emcts" and strategy == "vanilla":
             return(self.args.numMCTSSims)
         elif mode== "emcts" and strategy == "bridge-burning":

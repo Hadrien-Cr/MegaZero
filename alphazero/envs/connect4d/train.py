@@ -7,10 +7,19 @@ from alphazero.GenericPlayers import RandomPlayer, RawMCTSPlayer, RawOSLA
 from alphazero.utils import dotdict
 from alphazero.envs.connect4d.config import CONFIG_MCTS_VANILLA, CONFIG_EMCTS_VANILLA, CONFIG_MCTS_BB, CONFIG_EMCTS_BB
 
-# config = CONFIG_MCTS_VANILLA
-# config = CONFIG_EMCTS_VANILLA
-# config = CONFIG_MCTS_BB
-config = CONFIG_EMCTS_BB
+import argparse
+parser = argparse.ArgumentParser(description="Run training for Connect4D with different MCTS configurations.")
+parser.add_argument("--algorithm", type=str, default="emcts-vanilla",
+                    choices=["mcts-vanilla", "emcts-vanilla", "mcts-bb", "emcts-bb"],
+                    help="Specify which MCTS algorithm to use: 'mcts-vanilla', 'emcts-vanilla', 'mcts-bb', or 'emcts-bb'")
+args_parsed = parser.parse_args()
+name_to_config = {
+    "mcts-vanilla": CONFIG_MCTS_VANILLA,
+    "emcts-vanilla": CONFIG_EMCTS_VANILLA,
+    "mcts-bb": CONFIG_MCTS_BB,
+    "emcts-bb": CONFIG_EMCTS_BB
+}
+config = name_to_config[args_parsed.algorithm]
 
 args = get_args(dotdict({
     'baselineTester': [(RawOSLA, None)],
@@ -18,10 +27,10 @@ args = get_args(dotdict({
     'startIter': 1,
     'numIters': 50,
     'numWarmupIters': 1,
-    'process_batch_size': 128,
+    'process_batch_size': 64,
     'train_batch_size': 1024,
     # should preferably be a multiple of process_batch_size and workers
-    'gamesPerIteration': 10*128*(mp.cpu_count()-1),
+    'gamesPerIteration': 2*64*(mp.cpu_count()-1),
     'symmetricSamples': True,
     'compareWithBaseline': True,
     'arenaCompareBaseline': 10*(mp.cpu_count()-1),
@@ -32,7 +41,7 @@ args = get_args(dotdict({
     'arenaBatched': True,
     'baselineCompareFreq': 2,
     'compareWithPast': True,
-    'pastCompareFreq': 1,
+    'pastCompareFreq': 2,
     'cpuct': 2,
     'fpu_reduction': 0.1,
     'load_model': True,

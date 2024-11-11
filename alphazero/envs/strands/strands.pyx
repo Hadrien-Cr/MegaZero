@@ -35,7 +35,6 @@ class Game(GameState):
     """
     def __init__(self):
         super().__init__(board=self._get_board(), d = 6)
-        self.micro_step = 1
 
     @staticmethod
     def _get_board():
