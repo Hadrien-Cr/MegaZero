@@ -17,7 +17,7 @@ CONFIG_EMCTS_VANILLA = {
     "self_play_mode": "emcts",
     "self_play_strategy": "vanilla",
     "emcts_horizon": 12,
-    "emcts_bb_phases": 6,
+    "emcts_bb_phases": 8,
     "numMCTSSims": 300,
 }
 
@@ -26,6 +26,6 @@ CONFIG_EMCTS_BB = {
     "self_play_mode": "emcts",
     "self_play_strategy": "bridge-burning",
     "emcts_horizon": 12,
-    "emcts_bb_phases": 6,
+    "emcts_bb_phases": 8,
     "numMCTSSims": 300,
 }

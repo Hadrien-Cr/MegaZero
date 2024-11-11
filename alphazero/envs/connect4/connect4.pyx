@@ -32,6 +32,10 @@ class Game(GameState):
         return (self._player == other._player 
                 and self._turns == other._turns 
                 and self._board == other._board)
+    
+    @staticmethod
+    def avg_atomic_actions() -> int:
+        return 1
 
     def clone(self) -> 'Game':
         game = Game()

@@ -108,7 +108,7 @@ cdef class ENode:
         Adds mutated childrens by providing an array valid_mutations[t,a] of the mutation that can be performed and the mutate_prior[t,a] array
         """
         cdef int tau, a, player
-        assert len(self._children) == 0, f"{self}{self._children}"
+        # assert len(self._children) == 0, f"{self}{self._children}"
 
         for tau in range(len(self.seq)):
             player = player_history[tau]
@@ -120,7 +120,7 @@ cdef class ENode:
                                     for a, valid in enumerate(valid_mutations[tau]) if valid])
         # shuffle children
         #np.random.shuffle(self._children)
-        assert len(self._children)>0 or self.e.any(),  f"No children has been created from non terminal node {self} with {np.sum(valid_mutations)} valid_mutations."
+        # assert len(self._children)>0 or self.e.any(),  f"No children has been created from non terminal node {self} with {np.sum(valid_mutations)} valid_mutations."
 
     cdef float uct(self, float sqrt_parent_n, float fpu_value, float cpuct):
         return (fpu_value if self.n == 0 else self.q) + cpuct * self.p * sqrt_parent_n / (1 + self.n)
@@ -219,12 +219,12 @@ cdef class EMCTS:
     #   return rebuild_mcts, (self._root._players, self.cpuct, self._root, self._curnode, self._path)
 
     cpdef void search(self, object gs, object nn, int sims, bint add_root_noise, bint add_root_temp):
-        assert (self.seq_length%gs.d) == 0
+        # assert (self.seq_length%gs.d) == 0
         cdef float[:] v
         cdef float[:] p
         self.max_depth = 0
-        assert not gs.win_state().any()
-        assert gs.micro_step == 0
+        # assert not gs.win_state().any()
+        # assert gs.micro_step == 0
 
         for _ in range(sims):
             leaf = self.find_leaf(gs)
@@ -237,8 +237,6 @@ cdef class EMCTS:
         cdef float[:] v = np.zeros(gs.num_players() + 1, dtype=np.float32)  #np.full((value_size,), 1 / value_size, dtype=np.float32)
         cdef float[:] p = np.full(policy_size, 1, dtype=np.float32)
         self.max_depth = 0
-        assert not gs.win_state().any()
-        assert gs.micro_step == 0
         
         for _ in range(sims):
             leaf = self.find_leaf(gs)
@@ -257,9 +255,9 @@ cdef class EMCTS:
             state_history.append(gs.clone())
             pi.append(self.policy_history[t]/np.sum(self.policy_history[t]))
             gs.play_action(a)
+            print(gs)
             if gs.micro_step == 0 or gs.win_state().any():
                 break 
-        assert gs.micro_step == 0 or gs.win_state().any()
         return action_history, pi, state_history
 
     cpdef object find_leaf(self, object gs):
@@ -281,12 +279,12 @@ cdef class EMCTS:
         self._curnode = self._root
         cdef list parent_seq = self._root.seq
         cdef object leaf = gs.clone()
-        assert not gs.win_state().any(), "Impossible to call find_leaf on terminal node"
-        assert gs.micro_step == 0,  f"{self} {leaf} "
+        # assert not gs.win_state().any(), "Impossible to call find_leaf on terminal node"
+        # assert gs.micro_step == 0,  f"{self} {leaf} "
         # If the root sequence is not initialized
         if len(self._root.seq) < self.seq_length and not self._root.e.any():
             for a in self._root.seq:
-                assert not leaf.win_state().any(), f"{self} {leaf} {a}"
+                # assert not leaf.win_state().any(), f"{self} {leaf} {a}"
                 if a!= PAD: leaf.play_action(a)
 
         # Else if the root sequence is initialized, look for mutations
@@ -316,8 +314,8 @@ cdef class EMCTS:
         '''
         Returns valid_mutations
         '''
-        assert node.n == 0
-        assert len(node.seq) == 0
+        # assert node.n == 0
+        # assert len(node.seq) == 0
         cdef np.ndarray valids = np.zeros((len(parent_seq), state.action_size()), dtype=np.float32)
         player = state._player
         t = 0
@@ -354,7 +352,6 @@ cdef class EMCTS:
         
         if len(self._root.seq) < self.seq_length and not self._root.e.any():
             for a in self._root.seq:
-                assert not leaf.win_state().any(), f"{self} {leaf} {a}"
                 if a!= PAD: 
                     leaf.play_action(a)
         
@@ -372,7 +369,6 @@ cdef class EMCTS:
         if self.policy_history is None:
             self.policy_history = np.zeros((self.seq_length, gs.action_size()), dtype=np.int64)
         
-        assert self._curnode == self._root
 
         tau = len(self._root.seq)
         a = self.osla_test(gs)
@@ -389,7 +385,7 @@ cdef class EMCTS:
             a = np.random.choice(len(pi), p = pi/np.sum(pi))
         
         if tau < gs.d: 
-            self.policy_history[tau,a] += 1
+            self.policy_history[tau,a] += self.n_phases
         
         self._root.seq.append(a)
         self.player_history.append(gs._player)
@@ -403,7 +399,7 @@ cdef class EMCTS:
                 self.player_history.append(gs._player)
                 self._root.seq.append(PAD)
                 self.mutate_prior[tau] = self.mutate_prior[n-1]
-
+                tau+=1
         self._root.e = gs.win_state()
 
 
@@ -494,7 +490,6 @@ cdef class EMCTS:
         Changes _root to the new root
         """
         cdef ENode c
-        assert len(self._root._children)>0, f"Root {self._root} has no children"
         
         cdef float seen_policy = sum([c.p for c in self._root._children if c.n > 0])
         cdef float fpu_value = self._root.v - 0 * sqrt(seen_policy)

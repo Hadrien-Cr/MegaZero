@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from alphazero.envs.connect4d.connect4d import Game, NUM_BOARDS 
+from alphazero.envs.connect4d.connect4d import Game, NUM_BOARDS, DEFAULT_HEIGHT
 import dill as pickle
 import time
 '''
@@ -46,7 +46,7 @@ def test_overfull_column():
 # Test 3: Valid moves
 def test_get_valid_moves():
     column = 3
-    game = game = init_board_from_moves([column] * NUM_BOARDS * 6)
+    game = game = init_board_from_moves([column] * NUM_BOARDS * DEFAULT_HEIGHT)
     valid_moves = game.valid_moves()
     expected_valid_moves = np.array([True, True, True, False, True, True, True])
     assert np.array_equal(valid_moves, expected_valid_moves)
@@ -152,11 +152,10 @@ def test_agent():
         for i in range(len(agents)-1):
             players = [agents[i], agents[i+1]]
             print(players[0].__class__.__name__, "vs", players[1].__class__.__name__)
-            arena = Arena(players, Game, use_batched_mcts=args.arenaBatched, args=args)
+            arena = Arena(players, Game, use_batched_mcts=False, args=args)
             arena.play_games(args.arenaCompare)
     
 
 
 if __name__ == "__main__":
-    test_agent()
     pytest.main()

@@ -122,16 +122,15 @@ def test_agent():
 
     for strategy in ["vanilla", "bridge-burning"]:
         agents = [
-                    RawOSLA(Game, args),
+                    RawOSLA(strategy, Game, args),
                     RawEMCTSPlayer(strategy, Game, args),
                     RawMCTSPlayer(strategy, Game, args),
-                    RandomPlayer(Game),
+                    RandomPlayer(strategy, Game, args),
                 ]
         for i in range(len(agents)-1):
-            shuffle(agents)
             players = [agents[i], agents[i+1]]
             print(players[0].__class__.__name__, "vs", players[1].__class__.__name__)
-            arena = Arena(players, Game, use_batched_mcts=args.arenaBatched, args=args)
+            arena = Arena(players, Game, use_batched_mcts=False, args=args)
             arena.play_games(args.arenaCompare)
     
 if __name__ == "__main__":
