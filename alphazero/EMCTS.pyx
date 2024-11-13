@@ -255,7 +255,7 @@ cdef class EMCTS:
             state_history.append(gs.clone())
             pi.append(self.policy_history[t]/np.sum(self.policy_history[t]))
             gs.play_action(a)
-            print(gs)
+
             if gs.micro_step == 0 or gs.win_state().any():
                 break 
         return action_history, pi, state_history

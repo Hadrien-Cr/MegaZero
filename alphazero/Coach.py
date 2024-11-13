@@ -543,12 +543,9 @@ class Coach:
         #         self.args.arenaMCTS = True
         #         print('WARNING: Batched arena comparison is enabled which uses MCTS, but arena MCTS is set to False.'
         #                           ' Ignoring this, and continuing with batched MCTS in arena.')
-        if self.args.arenaMCTS:
-            nplayer = MCTSPlayer(self.args.self_play_strategy, self.train_net, self.game_cls, self.args)
-            pplayer = MCTSPlayer(self.args.self_play_strategy, self.self_play_net, self.game_cls, self.args)
-        else:
-            nplayer = NNPlayer(self.train_net, self.game_cls, self.args)
-            pplayer = NNPlayer(self.self_play_net, self.game_cls, self.args)            
+
+        nplayer = NNPlayer(self.train_net, self.game_cls, self.args)
+        pplayer = NNPlayer(self.self_play_net, self.game_cls, self.args)            
         players = [nplayer] + [pplayer] * (self.game_cls.num_players() - 1)
         self.arena = Arena(players, self.game_cls, use_batched_mcts=self.args.arenaBatched, args=self.args)
         wins, draws, winrates = self.arena.play_games(self.args.arenaCompare)
