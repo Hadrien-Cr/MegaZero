@@ -547,7 +547,7 @@ class Coach:
         nplayer = NNPlayer(self.train_net, self.game_cls, self.args)
         pplayer = NNPlayer(self.self_play_net, self.game_cls, self.args)            
         players = [nplayer] + [pplayer] * (self.game_cls.num_players() - 1)
-        self.arena = Arena(players, self.game_cls, use_batched_mcts=self.args.arenaBatched, args=self.args)
+        self.arena = Arena(players, self.game_cls, use_batched_mcts=False, args=self.args)
         wins, draws, winrates = self.arena.play_games(self.args.arenaCompare)
         if self.stop_train.is_set(): return
         winrate = winrates[0]
