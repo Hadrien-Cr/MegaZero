@@ -22,7 +22,7 @@ class SelfPlayAgent(mp.Process):
                  value_tensor, output_queue, result_queue, complete_count, games_played,
                  stop_event: mp.Event, pause_event: mp.Event(), args, _is_arena=False, _is_warmup=False):
         super().__init__()
-        self.arena_configurations = arena_configurations # [(mode_p1, strategy_p1), (mode_p2, strategy_p2), ...] if arena else None
+        self.arena_configurations = arena_configurations # [(mode_p1, strategy_p1, args1), (mode_p2, strategy_p2, args2), ...] if arena else None
         self.id_process = id_process
         self.game_cls = game_cls
         self.ready_queue = ready_queue
@@ -73,7 +73,7 @@ class SelfPlayAgent(mp.Process):
     
     def _get_mode_and_strategy(self, i: int):
         if self._is_arena:
-            mode, strategy = self.arena_configurations[self.gplayers[i]]
+            mode, strategy, args = self.arena_configurations[self.gplayers[i]]
         else:
             mode, strategy = self.args.self_play_mode, self.args.self_play_strategy
         return(mode, strategy)
@@ -92,9 +92,11 @@ class SelfPlayAgent(mp.Process):
             for player in range(self.game_cls.num_players()):
                 mode = self.arena_configurations[player][0]
                 if mode =='mcts':
-                    mcts.append(MCTS(self.args))
+                    args = self.arena_configurations[player][2]
+                    mcts.append(MCTS(args))
                 elif mode =='emcts':
-                    mcts.append(EMCTS(self.args))
+                    args = self.arena_configurations[player][2]
+                    mcts.append(EMCTS(args))
                 else:
                     raise ValueError, f"Mode {mode} not in ['mcts','emcts']"
             return tuple(mcts)

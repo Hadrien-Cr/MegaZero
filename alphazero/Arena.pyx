@@ -114,10 +114,11 @@ class Arena:
         self.__check_players_valid()
 
     def __check_players_valid(self):
-        if self.use_batched_mcts and not all(p.supports_process() for p in self.players):
-            print('Batched MCTS is not supported for some players. Turning off batched MCTS.')
-            self.use_batched_mcts = False
-
+        try:
+            if self.use_batched_mcts and not all(p.supports_process() for p in self.players):
+                print('Batched MCTS is not supported for some players. Turning off batched MCTS.')
+                self.use_batched_mcts = False
+        except: pass
     def __reset_stats(self):
         self.draws = 0
         [s.reset_wins() for s in self.__player_stats]
@@ -227,7 +228,7 @@ class Arena:
             # self.args.expertValueWeight.current = self.args.expertValueWeight.start
             # if self.args.workers >= mp.cpu_count():
             #    self.args.workers = mp.cpu_count() - 1
-            arena_configurations = [(player.mode, player.strategy) for player in self.players]
+            arena_configurations = [(player.mode, player.strategy, player.args) for player in self.players]
             for id_process in range(self.args.workers):
                 input_tensors = [[] for _ in range(self.game_cls.num_players())]
                 output_queues.append(mp.Queue())

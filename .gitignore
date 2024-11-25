@@ -12,8 +12,5 @@ fastafl/__pycache__
 checkpoint
 data
 runs
-**/**/**/**/__pycache__/
-**/**/**/__pycache__/
-**/**/__pycache__/
-**/__pycache__/
-__pycache__
+*.pyc
+experiments/*/*/*.pkl

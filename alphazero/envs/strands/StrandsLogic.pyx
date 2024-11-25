@@ -139,6 +139,7 @@ cdef class Board:
                 Rest of Hexes for this turn: {self.rest}, \
                 Hexes available: {np.asarray(self.hexes_available)} \n"
         c = [" _ ", " B ", " W "]
+        cdef int row, col, offset
         for row in range(self.width):
             offset = abs(row-(self.width//2))
             string+=3*offset*" "

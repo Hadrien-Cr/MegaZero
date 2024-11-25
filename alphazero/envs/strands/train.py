@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser(description="Run training for Connect4D with di
 parser.add_argument("--algorithm", type=str, default="emcts-vanilla",
                     choices=["mcts-vanilla", "emcts-vanilla", "mcts-bb", "emcts-bb"],
                     help="Specify which MCTS algorithm to use: 'mcts-vanilla', 'emcts-vanilla', 'mcts-bb', or 'emcts-bb'")
-args_parsed = parser.parse_args()
+args_parsed = parser.parse_args() 
 name_to_config = {
     "mcts-vanilla": CONFIG_MCTS_VANILLA,
     "emcts-vanilla": CONFIG_EMCTS_VANILLA,
@@ -29,7 +29,7 @@ args = get_args(dotdict({
     'workers': (mp.cpu_count()-1),
     'symmetricSamples': True,
     'startIter': 1,
-    'numIters': 1000,
+    'numIters': 50,
     'numWarmupIters': 1,
     'process_batch_size': 64,
     'train_batch_size': 1024,

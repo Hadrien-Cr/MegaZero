@@ -56,15 +56,17 @@ class StrandsHeuristic(BaseWrapper):
 class StrandsHeuristicMCTS(MCTSPlayer):
     def __init__(self, strategy = "vanilla", *args, **kwargs):
         super().__init__(strategy, None, *args, **kwargs)
-        self.__class__.__name__ = f"StrandsHeuristicMCTS(strategy = {strategy})"
         self.nn = StrandsHeuristic(self.game_cls, args)
+    def __repr__(self):
+        return f"StrandsHeuristicMCTS(strategy = {self.strategy})"
     def supports_process(self):
         return False
 class StrandsHeuristicEMCTS(EMCTSPlayer):
     def __init__(self, strategy = "vanilla", *args, **kwargs):
         super().__init__(strategy, None, *args, **kwargs)
-        self.__class__.__name__ = f"StrandsHeuristicEMCTS(strategy = {strategy})"
         self.nn = StrandsHeuristic(self.game_cls, args)
+    def __repr__(self):
+        return f"StrandsHeuristicEMCTS(strategy = {self.strategy})"
     def supports_process(self):
         return False
 class StrandsHeuristicOSLA(NNPlayer):
@@ -73,3 +75,5 @@ class StrandsHeuristicOSLA(NNPlayer):
         self.nn = StrandsHeuristic(self.game_cls, args)
     def supports_process(self):
         return False
+    def __repr__(self):
+        return "StrandsHeuristicOSLA"

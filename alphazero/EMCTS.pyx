@@ -119,7 +119,12 @@ cdef class ENode:
                                         player = player) 
                                     for a, valid in enumerate(valid_mutations[tau]) if valid])
         # shuffle children
-        #np.random.shuffle(self._children)
+        np.random.shuffle(self._children)
+        self._children.append(ENode(seq = [],
+                                    m = Mutation(PAD,PAD), 
+                                    num_players = num_players,
+                                    p = np.mean(mutate_prior[0]),
+                                    player = player_history[0]))
         # assert len(self._children)>0 or self.e.any(),  f"No children has been created from non terminal node {self} with {np.sum(valid_mutations)} valid_mutations."
 
     cdef float uct(self, float sqrt_parent_n, float fpu_value, float cpuct):
@@ -248,9 +253,11 @@ cdef class EMCTS:
         assert np.sum(self.policy_history)>0
 
         action_history, pi, state_history = [], [], []
-        
+
         for t, a in enumerate(self._root.seq):
             assert a!= PAD, f"{t,a} {self._root.seq}"
+            action = self.osla_test(gs)
+            if action != PAD: a = action
             action_history.append(a)
             state_history.append(gs.clone())
             pi.append(self.policy_history[t]/np.sum(self.policy_history[t]))
@@ -329,7 +336,9 @@ cdef class EMCTS:
                 valid_moves = state.valid_moves()
                 
                 if not valid_moves[a]:
-                    a = np.argmax(self.mutate_prior[t]*state.valid_moves()).item()
+                    repair_policy = self.mutate_prior[t]*valid_moves
+                    repair_policy /= np.sum(repair_policy)
+                    a = np.random.choice(len(valid_moves), p = repair_policy)
                     self.policy_history[t, a] +=1
                 valids[t] = valid_moves
                 valids[t, a] = 0 
@@ -363,10 +372,9 @@ cdef class EMCTS:
         pi should help store the self.mutate_prior, which will be shared for all nodes.
         """
 
-        if self.mutate_prior is None:
+        if len(self._root.seq) == 0:
             self.mutate_prior = np.zeros((self.seq_length, gs.action_size()), dtype=np.float32)
-        
-        if self.policy_history is None:
+            self._root.player = gs._player
             self.policy_history = np.zeros((self.seq_length, gs.action_size()), dtype=np.int64)
         
 
@@ -374,7 +382,7 @@ cdef class EMCTS:
         a = self.osla_test(gs)
         self.mutate_prior[tau] = pi
         
-        if a == PAD: # no winning move found
+        if a == PAD: # no winning move found by osla
             pi *= np.asarray(gs.valid_moves(), dtype=np.float32)
             # add root temperature
             if add_root_temp:
@@ -383,9 +391,9 @@ cdef class EMCTS:
                 pi /= np.sum(pi)
                     
             a = np.random.choice(len(pi), p = pi/np.sum(pi))
-        
+
         if tau < gs.d: 
-            self.policy_history[tau,a] += self.n_phases
+            self.policy_history[tau,a] += 1
         
         self._root.seq.append(a)
         self.player_history.append(gs._player)
@@ -426,6 +434,9 @@ cdef class EMCTS:
             self._curnode.n += 1
 
             m = self._curnode.m
+            if m.a == PAD:
+                for t, a in enumerate(self._root.seq):
+                    self.policy_history[t, a] += 1/self.seq_length
             if m.tau <gs.d: 
                 self.policy_history[m.tau, m.a] += 1
 
@@ -510,9 +521,10 @@ cdef class EMCTS:
         if len(self._root._children)>0 and np.sum(self.counts(gs))>0:
             # draw the best mutation found
             policy_of_mut = self.probs(gs, temp)
-            idx_of_mut = np.random.choice(len(policy_of_mut), p=policy_of_mut)        
-            m = Mutation(tau = idx_of_mut//gs.action_size(), a = idx_of_mut%gs.action_size())
-            self.update_root(gs, m)
+            idx_of_mut = np.random.choice(len(policy_of_mut), p=policy_of_mut)    
+            if idx_of_mut != len(policy_of_mut) - 1:
+                m = Mutation(tau = idx_of_mut//gs.action_size(), a = idx_of_mut%gs.action_size())
+                self.update_root(gs, m)
         else:
             pass
 
@@ -541,13 +553,17 @@ cdef class EMCTS:
             return probs
 
     cpdef int[:] counts(self, object gs):
-        cdef int[:] counts = np.zeros(self.seq_length * gs.action_size(), dtype=np.int32)
+        cdef int size = self.seq_length * gs.action_size()
+        cdef int[:] counts = np.zeros(size + 1, dtype=np.int32)
         cdef ENode c
         cdef int idx_of_mut
         assert len(self._root._children) > 0
         
         for c in self._root._children:
-            idx_of_mut = c.m.a + c.m.tau*gs.action_size()
-            counts[idx_of_mut] = c.n
+            if c.m.a == PAD:
+                counts[size] = c.n
+            else:
+                idx_of_mut = c.m.a + c.m.tau*gs.action_size()
+                counts[idx_of_mut] = c.n
         return np.asarray(counts)
 

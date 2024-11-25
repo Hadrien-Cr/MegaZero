@@ -82,17 +82,22 @@ class NNPlayer(BasePlayer):
             valids = state.valid_moves()
             options = policy * valids
             self.temp = self.args.temp_scaling_fn(self.temp, state.turns, state.max_turns())
-            if self.temp == 0:
-                bestA = np.argmax(options)
-                probs = [0] * len(options)
-                probs[bestA] = 1
-            else:
-                probs = [x ** (1. / self.temp) for x in options]
-                probs /= np.sum(probs)
-
-            a = np.random.choice(
-                np.arange(state.action_size()), p=probs
-            ).item()
+            try:
+                if self.temp == 0:
+                    bestA = np.argmax(options)
+                    probs = [0] * len(options)
+                    probs[bestA] = 1
+                else:
+                    probs = [x ** (1. / self.temp) for x in options]
+                    probs /= np.sum(probs)
+                a = np.random.choice(
+                    np.arange(state.action_size()), p=probs
+                ).item()
+            except FloatingPointError:
+                options/=np.sum(options)
+                a = np.random.choice(
+                    np.arange(state.action_size()), p=options
+                ).item()
 
             state.play_action(a)
             turn.append(a)
@@ -111,7 +116,6 @@ class MCTSPlayer(BasePlayer):
         self.nn = nn
         self.strategy = strategy
         self.mode = "mcts"
-        self.__class__.__name__ = f"MCTSPlayer(strategy = {strategy})"
         self.temp = self.args.startTemp
         self.print_policy = print_policy
         self.average_value = average_value
@@ -126,7 +130,8 @@ class MCTSPlayer(BasePlayer):
             value = self.mcts.value(self.average_value)
             self.__rel_val_split = value if value > 0.5 else 1 - value
             print('initial value:', self.__rel_val_split)
-
+    def __repr__(self):
+        return f"MCTSPlayer(strategy = {self.strategy})"
     @staticmethod
     def supports_process() -> bool:
         return True
@@ -178,7 +183,8 @@ class EMCTSPlayer(BasePlayer):
         self.draw_mcts = draw_mcts
         self.draw_depth = draw_depth
         self.emcts = EMCTS(self.args)
-
+    def __repr__(self):
+        return f"EMCTSPlayer(strategy = {self.strategy})"
     @staticmethod
     def supports_process() -> bool:
         return True
@@ -222,7 +228,6 @@ class RawMCTSPlayer(MCTSPlayer):
         super().__init__(strategy, None, *args, **kwargs)
         self.strategy = strategy
         self.mode = "mcts"
-        self.__class__.__name__ = f"RawMCTSPlayer(strategy = {strategy})"
         self._POLICY_SIZE = self.game_cls.action_size()
         self._POLICY_FILL_VALUE = 1 / self._POLICY_SIZE
         self._VALUE_SIZE = self.game_cls.num_players() + 1
@@ -262,7 +267,6 @@ class RawEMCTSPlayer(EMCTSPlayer):
         super().__init__(strategy, None, *args, **kwargs)
         self.strategy = strategy
         self.mode = "emcts"
-        self.__class__.__name__ = f"RawEMCTSPlayer(strategy = {strategy})"
         self._POLICY_SIZE = self.game_cls.action_size()
         self._POLICY_FILL_VALUE = 1 / self._POLICY_SIZE
         self._VALUE_SIZE = self.game_cls.num_players() + 1

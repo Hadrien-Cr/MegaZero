@@ -1,0 +1,29 @@
+CONNECT4D
+
+Win Matrix(row beat column):
+mcts-v -> [[  0. 606. 477. 623.]
+mcts-bb -> [462.   0. 533. 589.]
+emcts-v -> [623. 554.   0. 546.]
+emcts-bb-> [448. 474. 535.   0.]]
+
+Rankings:
+1. experiments/connect4d/connect4d-emcts-vanilla/iteration-0050.pkl with 0.08 rating
+2. experiments/connect4d/connect4d-mcts-vanilla/iteration-0050.pkl with 0.08 rating
+3. experiments/connect4d/connect4d-mcts-bb/iteration-0050.pkl with -0.02 rating
+4. experiments/connect4d/connect4d-emcts-bb/iteration-0050.pkl with -0.14 rating
+
+STRANDS
+
+Win Matrix(row beat column):
+mcts-v -> [[  0. 548. 498. 305.]
+mcts-bb -> [508.   0. 584. 497.]
+emcts-v -> [558. 472.   0. 535.]
+emcts-bb-> [751. 559. 521.   0.]]
+
+Rankings:
+1. experiments/strands/strands-emcts-bb/iteration-0050.pkl with 0.24 rating
+2. experiments/strands/strands-mcts-bb/iteration-0050.pkl with 0.00 rating
+3. experiments/strands/strands-emcts-vanilla/iteration-0050.pkl with -0.02 rating
+4. experiments/strands/strands-mcts-vanilla/iteration-0050.pkl with -0.22 rating
+
+(Rating Diff, Winrate) -> (0.5, 62%), (1, 73%), (2, 88%), (3, 95%), (5, 99%)
